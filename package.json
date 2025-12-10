@@ -1,0 +1,53 @@
+{
+  "name": "look-cashier",
+  "version": "2.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-packager . LOOK-CASHIER --platform=win32 --arch=ia32 --icon=ico/ico.ico --overwrite",
+    "build:win7-32": "electron-builder --win --ia32 --config.directories.output=install/Windows7-32bit",
+    "build:win10-32": "electron-builder --win --ia32 --config.directories.output=install/Windows10-32bit",
+    "build:win11-32": "electron-builder --win --ia32 --config.directories.output=install/Windows11-32bit",
+    "build:all": "npm run build:win7-32 && npm run build:win10-32 && npm run build:win11-32"
+  },
+  "keywords": [],
+  "author": "ENG.LOL",
+  "license": "ISC",
+  "description": "برنامج إدارة المدرسة التعليمية - LOOK CASHIER. برنامج متكامل لإدارة الرسوم والطلاب والفترات الدراسية.\nيدعم Windows 7/8/10/11 (x64/x86). من تطوير المهندس LOL.",
+  "devDependencies": {
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.englol.lookcashier",
+    "productName": "LOOK CASHIER",
+    "copyright": "Copyright © 2025 ENG.LOL",
+    "files": [
+      "**/*",
+      "!node_modules/*",
+      "!install/*",
+      "!.git/*",
+      "!.env"
+    ],
+    "directories": {
+      "output": "install"
+    },
+    "win": {
+      "icon": "ico/ico.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LOOK CASHIER"
+    }
+  },
+  "electronDownload": {
+    "cache": "$HOME/.electron-cache"
+  }
+}
