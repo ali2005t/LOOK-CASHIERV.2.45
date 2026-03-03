@@ -237,6 +237,20 @@ function mapSubTypeToDbType(subType) {
 // جلب العناصر من فايربيس حسب النوع والفرقة (يدعم اختيار ملازم فردية أو محاضرات فردية من كل الاشتراكات)
 async function getItemsForSubType(subType, grade) {
   if (!subType || !grade) return [];
+
+  if (subType === "كروت فردية") {
+    const snapshot = await getDocs(collection(db, "onlineCards"));
+    const items = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      // الكروت الفردية تظهر للكل بغض النظر عن الفرقة لسهولة الوصول، أو ممكن نفلترها لو حبيت
+      if (data.type === "فردي") {
+        items.push({ id: docSnap.id, name: data.name, price: data.price, stock: data.stock || 0, isOnlineCard: true });
+      }
+    });
+    return items;
+  }
+
   const snapshot = await getDocs(collection(db, "subscriptions"));
   const items = [];
   if (subType === "ملازم فردية") {
@@ -415,18 +429,15 @@ if (invoiceForm) {
       return;
     }
 
-    // فحص الصلاحيات - منع إنشاء فواتير الطلاب المشتركين إذا لم يسمح المدير
     const userType = localStorage.getItem('userType');
     const userPermissions = JSON.parse(localStorage.getItem('userPermissions') || '[]');
     const isSubscriberInvoice = subTypesSelected.some(st => st !== 'محاضرات فردية' && st !== 'ملازم فردية');
 
-    // المدير يمكنه عمل أي شيء بدون قيود
     if (isSubscriberInvoice && userType !== 'مدير' && !userPermissions.includes('create_subscriber_invoice')) {
       showNotification('❌ ليس لديك صلاحية لإنشاء فواتير الطلاب المشتركين. يرجى التواصل مع المدير.', 'error', 4000);
       return;
     }
 
-    // حفظ بيانات الفاتورة العامة
     let student = '', phone = '';
     const grade = selectedGrade;
     const studyType = document.getElementById('study-type').value;
@@ -439,19 +450,13 @@ if (invoiceForm) {
       remaining: document.getElementById('installment-remaining')?.value || ''
     };
 
-    // جلب بيانات الطالب إذا لم تكن محاضرات أو ملازم فردية
     const isIndividual = subTypesSelected.some(st => st === 'محاضرات فردية' || st === 'ملازم فردية');
     if (!isIndividual) {
       student = document.getElementById('student-name').value;
       phone = document.getElementById('phone').value;
     }
 
-    // إنشاء فاتورة منفصلة لكل نوع اشتراك
-    let savedInvoiceRef = null;
-    let invoicesToPrint = [];
-    let invoiceIds = {}; // لتخزين معرفات الفواتير حسب النوع
-
-    // جلب بيانات السنتر من localStorage
+    let invoiceIds = {};
     const centerName = localStorage.getItem('centerName') || 'اسم السنتر';
     const centerAddress = localStorage.getItem('centerAddress') || '';
     const centerPhone1 = localStorage.getItem('centerPhone1') || '';
@@ -460,151 +465,119 @@ if (invoiceForm) {
     const logoSrc = localStorage.getItem('logoSrc') || '';
 
     try {
-      // معالجة جميع الفواتير بنفس الطريقة (سواء عادية أو فودافون كاش)
-      // الفرق فقط: فودافون لا تُحسب في المجموع المالي
-
-      // الخطوة الأولى: إنشاء جميع الفواتير
+      // 1. إنشاء الفواتير
       for (let subType of subTypesSelected) {
-        // الحصول على العناصر لهذا النوع
         const itemsForSubType = itemsBySubType[subType] || [];
-
-        // جمع معلومات السنتر
-        const centerInfo = {
-          name: centerName,
-          address: centerAddress,
-          phone1: centerPhone1,
-          phone2: centerPhone2,
-          phone3: centerPhone3,
-          logo: logoSrc
-        };
-
         const invoice = {
           grade: grade,
           studyType: studyType,
           subType: mapSubTypeToDbType(subType),
-          items: itemsForSubType.map(({ subType, ...rest }) => rest), // حذف خاصية subType من العنصر
+          items: itemsForSubType.map(({ subType, ...rest }) => rest),
           payment: payment,
           notes: notes,
           date: Timestamp.now(),
           recipient: recipient,
           installment: installment,
           num: nextInvoiceNumber + (subTypesSelected.indexOf(subType)),
-          centerInfo: centerInfo,
-          isVodafone: payment === 'فودافون كاش' // علامة تمييز فودافون كاش
+          centerInfo: { name: centerName, address: centerAddress, phone1: centerPhone1, phone2: centerPhone2, phone3: centerPhone3, logo: logoSrc },
+          isVodafone: payment === 'فودافون كاش'
         };
 
-        // إضافة بيانات الطالب إذا لم تكن محاضرات أو ملازم فردية
         if (subType !== 'محاضرات فردية' && subType !== 'ملازم فردية') {
           invoice.student = student;
           invoice.phone = phone;
         }
 
-        // إضافة الملازم الفردية إذا كان نوع الاشتراك "ملازم" + خصم المخزون
-        if (subType === 'اشتراك ملازم') {
-          const allSubsSnap = await getDocs(collection(db, "subscriptions"));
-          const indivNotes = [];
-          const linkedBookletIds = [];
-          const outOfStockNames = [];
-
-          allSubsSnap.forEach(docSnap => {
-            const data = docSnap.data();
-            if (data.type === 'ملازم فردية' && data.grade === grade && (data.published === undefined || data.published)) {
-              indivNotes.push({ name: data.name, price: data.price, delivered: false });
-              linkedBookletIds.push(docSnap.id);
-              // تحقق من المخزون
-              if ((data.stock ?? 0) <= 0) {
-                outOfStockNames.push(data.name);
-              }
-            }
-          });
-
-          // تحذير لو في ملازم نفذت
-          if (outOfStockNames.length > 0) {
-            const names = outOfStockNames.join('، ');
-            showNotification(`⚠️ تحذير: المخزون نفذ للملازم التالية:\n${names}`, 'warning', 5000);
-          }
-
-          invoice.indivNotes = indivNotes;
-          // خصم الكمية من مخزون كل ملزمة فردية مرتبطة بالفرقة
-          for (const bookletId of linkedBookletIds) {
-            try {
-              await updateDoc(doc(db, 'subscriptions', bookletId), { stock: increment(-1) });
-            } catch (stockErr) {
-              console.error('Failed to decrement linked booklet stock:', stockErr);
-            }
-          }
-        }
-
-        // حفظ الفاتورة
-        savedInvoiceRef = await addDoc(collection(db, 'invoices'), invoice);
+        const savedInvoiceRef = await addDoc(collection(db, 'invoices'), invoice);
         invoiceIds[mapSubTypeToDbType(subType)] = savedInvoiceRef.id;
         localStorage.setItem('invoice_saved', Date.now());
       }
 
-      // جمع قائمة أنواع الاشتراكات
-      const subTypesList = subTypesSelected.map(st => mapSubTypeToDbType(st));
+      showNotification('تم حفظ الفواتير بنجاح (' + subTypesSelected.length + ' فاتورة)', 'success', 2500);
 
-      // جمع بيانات الفواتير للطباعة مباشرة
+      // 2. جلب الفواتير للطباعة (بما فيها معلومات تسليم الكروت)
       const refreshInvoices = [];
-      for (let dbSubType of subTypesList) {
-        const invoiceId = invoiceIds[dbSubType];
-        try {
-          const docSnap = await getDoc(doc(db, 'invoices', invoiceId));
-          if (docSnap.exists()) {
-            refreshInvoices.push({
-              ...docSnap.data(),
-              id: invoiceId,
-              num: docSnap.data().num
-            });
-          }
-        } catch (e) {
-          console.warn("Warning fetching invoice:", e);
-        }
+      for (let dbType of Object.values(invoiceIds)) {
+        const snap = await getDoc(doc(db, 'invoices', dbType));
+        if (snap.exists()) refreshInvoices.push({ ...snap.data(), id: snap.id });
       }
 
-      showNotification('تم حفظ الفواتير بنجاح (' + refreshInvoices.length + ' فاتورة)', 'success', 2500);
-
-      // خصم الكمية من المخزون لكل عنصر مباع
+      // 3. خصم المخزون للعناصر العادية
+      const allSubsForStock = await getDocs(collection(db, 'subscriptions'));
       for (const item of allSelectedItems) {
         if (item.id) {
           try {
-            const subRef = doc(db, 'subscriptions', item.id);
-            await updateDoc(subRef, {
-              stock: increment(-1)
-            });
-            console.log(`Stock decremented for: ${item.name}`);
-          } catch (stockErr) {
-            console.error(`Error decrementing stock for ${item.name}:`, stockErr);
-          }
+            const itemDoc = allSubsForStock.docs.find(d => d.id === item.id);
+            const itemData = itemDoc ? itemDoc.data() : null;
+            if (itemData) {
+              for (const d of allSubsForStock.docs) {
+                const data = d.data();
+                if (data.name === itemData.name && data.type === itemData.type) {
+                  await updateDoc(doc(db, 'subscriptions', d.id), { stock: increment(-1) });
+                }
+              }
+            } else if (item.isOnlineCard) {
+              // خصم لو كرت فردي تم بيعه مباشرة
+              await updateDoc(doc(db, 'onlineCards', item.id), { stock: increment(-1) });
+            }
+          } catch (e) { console.error('Stock error:', e); }
         }
       }
 
-      // إعادة تعيين النموذج
+      // 4. معالجة تسليم كروت الأونلاين (الـ Checkboxes)
+      const deliveryCheckboxes = document.querySelectorAll('#online-card-delivery-list input[type="checkbox"]');
+      let onlineCardsDeliveryInfo = [];
+
+      for (const cb of deliveryCheckboxes) {
+        const cardId = cb.dataset.cardId;
+        const cardName = cb.dataset.cardName;
+        const perSub = parseInt(cb.dataset.perSub) || 1;
+        const cardType = cb.dataset.cardType;
+        const isDelivered = cb.checked;
+
+        onlineCardsDeliveryInfo.push({ cardId, cardName, isDelivered });
+
+        if (isDelivered) {
+          try {
+            const cardRef = doc(db, 'onlineCards', cardId);
+            if (cardType === 'للاشتراكات') {
+              const subCount = allSelectedItems.filter(i => i.subType !== 'محاضرات فردية' && i.subType !== 'ملازم فردية' && !i.isOnlineCard).length;
+              if (subCount > 0) await updateDoc(cardRef, { stock: increment(-subCount * perSub) });
+            } else {
+              await updateDoc(cardRef, { stock: increment(-1) });
+            }
+          } catch (e) { console.error('Online card stock error:', e); }
+        }
+      }
+
+      // تحديث الفواتير المسجلة بمعلومات التسليم في قاعدة البيانات
+      for (let dbType of Object.values(invoiceIds)) {
+        await updateDoc(doc(db, 'invoices', dbType), {
+          onlineCardsDelivery: onlineCardsDeliveryInfo
+        });
+      }
+
+      refreshInvoices.forEach(inv => {
+        inv.onlineCardsDelivery = onlineCardsDeliveryInfo;
+      });
+
+      // 5. إعادة تعيين وإنهاء
       document.getElementById('invoice-form').reset();
-      selectedItems = [];
-      window.selectedItems = [];
-      itemsBySubType = {}; // حذف جميع العناصر المخزنة
+      selectedItems = []; window.selectedItems = []; itemsBySubType = {};
       document.getElementById('items-container').innerHTML = '';
       updateInvoicePreview();
       updateSelectedItemsBox();
       resetSelectedItemsBox();
 
-      // عرض نافذة تأكيد الطباعة
       if (refreshInvoices.length > 0) {
         window.invoicesToPrint = refreshInvoices;
-        showConfirmDialog(`هل تريد طباعة الفواتير الآن؟ (عدد الفواتير: ${refreshInvoices.length})`, () => {
-          refreshInvoices.forEach(inv => {
-            window.lastSavedInvoice = inv;
-            printInvoice();
-          });
-        }, () => {
-          // لا تفعل شيء عند الضغط على "لا"
+        showConfirmDialog(`هل تريد طباعة الفواتير الآن؟`, () => {
+          refreshInvoices.forEach(inv => { window.lastSavedInvoice = inv; printInvoice(); });
         });
       }
     } catch (err) {
-      showNotification('حدث خطأ أثناء الحفظ، تأكد من الاتصال بالإنترنت', 'error', 3500);
-      console.error('Error saving invoices:', err);
-      return;
+      showNotification('حدث خطأ أثناء الحفظ', 'error', 3500);
+      console.error(err);
     }
   });
 }
@@ -663,6 +636,8 @@ function updateSelectedItemsBox() {
   // تحديث العناصر المختارة في نموذج المحاكاة
   window.selectedItems = allSelectedItems;
   updateInvoicePreview();
+  // تحديث مربعات تسليم كروت الأونلاين - ندهها مباشرة
+  updateOnlineCardDelivery();
 }
 
 // تحديث المعاينة عند اختيار العناصر
@@ -767,9 +742,9 @@ function showSelectableItems(items, subType = selectedSubType) {
     await fetchNextInvoiceNumber(); // تحديث رقم الفاتورة حسب الفرقة
     updateInvoicePreview();
     // إعادة تعيين العناصر المختارة عند تغيير الفرقة
-    selectedItems = [];
+    itemsBySubType = {};
     window.selectedItems = [];
-    resetSelectedItemsBox();
+    updateSelectedItemsBox();
     // إعادة تحميل العناصر المتاحة للنوع الحالي (إن وجد)
     if (selectedSubType) {
       getItemsForSubType(selectedSubType, selectedGrade).then(showSelectableItems);
@@ -1138,6 +1113,94 @@ function printInvoice() {
   win.document.close();
   setTimeout(() => {
     win.print();
-    win.close();
   }, 300);
 }
+
+// ===== مربع تسليم كروت الأونلاين في الكاشير =====
+async function updateOnlineCardDelivery() {
+  const box = document.getElementById('online-card-delivery-box');
+  const list = document.getElementById('online-card-delivery-list');
+  if (!box || !list) return;
+
+  // جمع جميع العناصر المختارة حالياً
+  let allSelectedItems = [];
+  Object.values(itemsBySubType || {}).forEach(arr => {
+    if (Array.isArray(arr)) allSelectedItems = allSelectedItems.concat(arr);
+  });
+
+  if (allSelectedItems.length === 0) {
+    box.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  // تحديد أي أنواع كروت محتاجين نعرضها
+  let hasSubscriptions = false;
+  let hasIndividualItems = false;
+
+  Object.keys(itemsBySubType || {}).forEach(subType => {
+    const items = itemsBySubType[subType];
+    if (Array.isArray(items) && items.length > 0) {
+      if (subType === 'محاضرات فردية' || subType === 'ملازم فردية') {
+        hasIndividualItems = true;
+      } else if (subType.includes('اشتراك')) {
+        hasSubscriptions = true;
+      } else {
+        // أي صنف أخر يندرج تحت الاشتراكات في الغالب
+        hasSubscriptions = true;
+      }
+    }
+  });
+
+  try {
+    const snap = await getDocs(collection(db, 'onlineCards'));
+    const relevantCards = [];
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.type === 'للاشتراكات' && hasSubscriptions) {
+        relevantCards.push({ id: d.id, ...data });
+      } else if (data.type === 'فردي' && hasIndividualItems) {
+        relevantCards.push({ id: d.id, ...data });
+      }
+    });
+
+    if (relevantCards.length === 0) {
+      box.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+
+    box.style.display = '';
+    // الحفاظ على حالة الـ checkboxes
+    const prevChecked = {};
+    list.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      prevChecked[cb.dataset.cardId] = cb.checked;
+    });
+
+    list.innerHTML = relevantCards.map(card => `
+      <label style="display:flex;align-items:center;gap:10px;margin-bottom:6px;cursor:pointer;background:#fff;padding:8px;border-radius:8px;border:1px solid #e0f0ff;">
+        <input type="checkbox" data-card-id="${card.id}" data-card-name="${card.name}" data-per-sub="${card.perSub || 1}" data-card-type="${card.type}"
+          ${prevChecked[card.id] ? 'checked' : ''}
+          style="width:20px;height:20px;accent-color:#1976d2;">
+        <span style="font-size:0.95em;">
+          <b style="color:#1565c0;">${card.name}</b>
+          <br>
+          <small style="color:#666;">
+            ${card.type === 'للاشتراكات' ? `(${card.perSub || 1} كرت/اشتراك)` : '(كود فردي)'} 
+            | مخزون: <span style="color:${(card.stock || 0) < 10 ? 'red' : '#388e3c'}">${card.stock || 0}</span>
+          </small>
+        </span>
+      </label>
+    `).join('');
+  } catch (e) {
+    console.error('Error loading online cards for delivery:', e);
+  }
+}
+
+// استدعاء updateOnlineCardDelivery عند تغيّر العناصر المختارة
+// تم دمج الاستدعاء مباشرة لحل مشكلة عدم الظهور
+document.addEventListener('selectedItemsChanged', updateOnlineCardDelivery);
+window.updateOnlineCardDelivery = updateOnlineCardDelivery;
+
+// ملاحظة: تأكد من استدعاء هذه الوظيفة يدوياً في الأماكن التي تغير selectedItems
+// أو استخدام Event Custom كما فعلنا أعلاه

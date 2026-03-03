@@ -1,13 +1,6 @@
 // js/invoices.js
 import { db } from "./firebase.js";
-import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
-  addDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { collection as collection2, getDocs as getDocs2 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { doc as doc2, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
@@ -88,7 +81,8 @@ async function loadInvoices() {
       recipient: inv.recipient || '-',
       notes: inv.notes || '-',
       linkedSubTypes: inv.linkedSubTypes || [],
-      indivNotes: inv.indivNotes || []   // للملازم: قائمة الملازم المرتبطة وحالة تسليمها
+      indivNotes: inv.indivNotes || [],   // للملازم: قائمة الملازم المرتبطة وحالة تسليمها
+      onlineCardsDelivery: inv.onlineCardsDelivery || [] // للكروت الأونلاين
     });
     counters[type] = num + 1;
   });
@@ -132,6 +126,16 @@ function renderInvoicesTable() {
       const allDone = delivered === total;
       deliverySummary = `<span style="font-weight:bold;color:${allDone ? '#388e3c' : '#e65100'};background:${allDone ? '#e8f5e9' : '#fff3e0'};padding:3px 10px;border-radius:8px;">${delivered}/${total} ✔</span>`;
     }
+
+    // ملخص تسليم الكروت
+    let cardSummary = '-';
+    if (inv.onlineCardsDelivery && inv.onlineCardsDelivery.length > 0) {
+      const total = inv.onlineCardsDelivery.length;
+      const delivered = inv.onlineCardsDelivery.filter(c => c.delivered).length;
+      const allDone = delivered === total;
+      cardSummary = `<span style="font-weight:bold;color:${allDone ? '#1976d2' : '#d32f2f'};background:${allDone ? '#e3f2fd' : '#ffebee'};padding:3px 10px;border-radius:8px;">${delivered}/${total} 🃏</span>`;
+    }
+
     tr.innerHTML = `
       <td>${inv.num}</td>
       <td>${inv.student}</td>
@@ -146,6 +150,7 @@ function renderInvoicesTable() {
       <td>${inv.notes || '-'}</td>
       <td>${recipientCell}</td>
       <td style='text-align:center;'>${deliverySummary}</td>
+      <td style='text-align:center;'>${cardSummary}</td>
       <td style='display:flex;gap:6px;justify-content:center;align-items:center;'>${actions}</td>
     `;
     tableBody.appendChild(tr);
@@ -298,20 +303,64 @@ async function showInvoiceModal(id) {
   if ((inv.subType === 'اشتراك ملازم' || inv.subType === 'ملازم') && allNotesList.length > 0) {
     indivNotesBoxes = `<div style='margin:18px 0 0 0;'>
       <b style='color:#1976d2;'>جميع الملازم المرتبطة بالفرقة:</b>
-      <div class='indiv-notes-list'>
+      <div class='indiv-notes-list' style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px;margin-top:10px;">
         ${allNotesList.map((x, i) =>
-      `<div class='indiv-note-box'>
-            <span class='note-name'>${x.name}</span>
-            <span class='note-price'>${x.price} ج</span>
-            <input type='checkbox' class='indiv-note-delivered-checkbox' data-idx='${i}' ${x.delivered ? 'checked' : ''} title='تغيير حالة الاستلام'>
-            <span class='delivered-status ${x.delivered ? 'delivered' : 'not-delivered'}'>${x.delivered ? 'تم الاستلام' : 'لم يستلم بعد'}</span>
+      `<div class='indiv-note-box' style="background:#fff;padding:10px;border-radius:10px;border:1px solid #e0e0e0;text-align:center;">
+            <div style="font-weight:bold;font-size:0.9em;margin-bottom:5px;">${x.name}</div>
+            <input type='checkbox' class='indiv-note-delivered-checkbox' data-idx='${i}' ${x.delivered ? 'checked' : ''} style="width:18px;height:18px;">
+            <div style="font-size:0.8em;color:${x.delivered ? '#2e7d32' : '#d32f2f'}">${x.delivered ? 'تم' : 'لم'} يستلم</div>
           </div>`
     ).join('')}
       </div>
     </div>`;
   }
-  // لا تعرض الملازم الفردية المتاحة في الاشتراك نهائياً
-  let availableIndivNotesSection = '';
+
+  // --- مربعات استلام كروت الأونلاين ---
+  let cardDeliverySummary = '';
+  let indivCardsBoxes = '';
+
+  // لو الفاتورة قديمة ومعندهاش onlineCardsDelivery، نحاول نجيب الكروت المناسبة (للاشتراكات)
+  if ((!inv.onlineCardsDelivery || inv.onlineCardsDelivery.length === 0) &&
+    (inv.subType && (inv.subType.includes('اشتراك') || inv.subType === 'كورسات' || inv.subType === 'ملازم'))) {
+    const cardsSnap = await getDocs(collection(db, "onlineCards"));
+    const autoCards = [];
+    cardsSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.type === 'للاشتراكات') {
+        autoCards.push({ id: docSnap.id, name: data.name, type: data.type, perSub: data.perSub || 1, delivered: false });
+      }
+    });
+    if (autoCards.length > 0) {
+      inv.onlineCardsDelivery = autoCards;
+      // حفظها في الفاتورة مستقبلاً
+      try {
+        await updateDoc(doc(db, 'invoices', id), { onlineCardsDelivery: autoCards });
+      } catch (e) { console.warn('Could not auto-save onlineCardsDelivery:', e); }
+    }
+  }
+
+  const onlineCardsArr = inv.onlineCardsDelivery || [];
+  if (onlineCardsArr.length > 0) {
+    const delCount = onlineCardsArr.filter(x => x.delivered).length;
+    const remCount = onlineCardsArr.length - delCount;
+    cardDeliverySummary = `<div style='margin:18px 0 0 0;padding-top:12px;border-top:1px dashed #90caf9;'>
+      <b style='color:#1565c0;'>عدد كروت الأونلاين المستلمة: ${delCount}</b>
+      <span style='margin-right:18px;color:#d32f2f;'>المتبقي: ${remCount}</span>
+    </div>`;
+
+    indivCardsBoxes = `<div style='margin:12px 0 0 0;'>
+      <b style='color:#1565c0;'>كروت الأونلاين المرتبطة بالفاتورة:</b>
+      <div class='indiv-cards-list' style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px;margin-top:10px;">
+        ${onlineCardsArr.map((x, i) =>
+      `<div class='indiv-card-box' style="background:#fff;padding:10px;border-radius:10px;border:2px solid ${x.delivered ? '#1976d2' : '#ffebee'};text-align:center;box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <div style="font-weight:bold;font-size:0.9em;margin-bottom:5px;color:#1565c0;">${x.name}</div>
+            <input type='checkbox' class='card-delivered-checkbox' data-idx='${i}' ${x.delivered ? 'checked' : ''} style="width:20px;height:20px;accent-color:#1976d2;">
+            <div style="font-size:0.8em;font-weight:bold;margin-top:4px;color:${x.delivered ? '#1976d2' : '#d32f2f'}">${x.delivered ? 'تـــم التسليم' : 'لـم يستلم'}</div>
+          </div>`
+    ).join('')}
+      </div>
+    </div>`;
+  }
   // بناء النافذة بتصميم عصري وجذاب
   // إضافة اسم السنتر والعنوان في أعلى الفاتورة عند الطباعة
   // جلب بيانات السنتر من localStorage
@@ -379,8 +428,10 @@ async function showInvoiceModal(id) {
             `).join('')}
           </table>
         </div>
-  ${notesDeliveryBoxes}
-  ${indivNotesBoxes}
+        ${notesDeliveryBoxes}
+        ${indivNotesBoxes}
+        ${cardDeliverySummary}
+        ${indivCardsBoxes}
         
         <div style='margin:12px 0;padding:12px;background:#e8f5e9;border:2px solid #388e3c;border-radius:6px;text-align:center;'>
           <div style='font-size:12px;color:#2e7d32;margin-bottom:4px;'>الإجمالي</div>
@@ -540,6 +591,47 @@ async function showInvoiceModal(id) {
       });
     });
   }
+  // تفعيل تحديث حالة استلام كروت الأونلاين
+  if (onlineCardsArr.length > 0) {
+    modal.querySelectorAll('.card-delivered-checkbox').forEach(cb => {
+      cb.addEventListener('change', async function () {
+        const idx = +cb.getAttribute('data-idx');
+        const cardInfo = onlineCardsArr[idx];
+        const isDelivered = cb.checked;
+
+        // حساب الكمية المراد خصمها أو إضافتها للمخزون
+        let amount = 0;
+        if (cardInfo.type === 'للاشتراكات') {
+          // حساب عدد الاشتراكات في الفاتورة
+          const subCount = (inv.items || []).filter(item =>
+            !item.isOnlineCard && (item.subType === 'كورسات' || item.subType === 'ملازم' || (inv.subType && inv.subType.includes('اشتراك')))
+          ).length;
+          amount = (subCount || 1) * (cardInfo.perSub || 1);
+        } else {
+          amount = 1;
+        }
+
+        try {
+          // 1. تحديث حالة الفاتورة
+          onlineCardsArr[idx].delivered = isDelivered;
+          await updateDoc(doc(db, 'invoices', id), { onlineCardsDelivery: onlineCardsArr });
+
+          // 2. تحديث المخزون (لو استلم نخصم، لو ألغى نرجع)
+          const stockChange = isDelivered ? -amount : amount;
+          await updateDoc(doc(db, 'onlineCards', cardInfo.id), {
+            stock: increment(stockChange)
+          });
+
+          showNotification(isDelivered ? 'تم تسليم الكرت وخصم المخزون' : 'تم إلغاء التسليم وإرجاع المخزون', 'success');
+          setTimeout(() => showInvoiceModal(id), 200);
+        } catch (err) {
+          console.error('Error updating card delivery:', err);
+          showNotification('حدث خطأ أثناء تحديث حالة الكرت', 'error');
+        }
+      });
+    });
+  }
+
   // تفعيل تحديث حالة الاستلام لملازم indivNotes (الملازم المرتبطة بالفرقة)
   if ((inv.subType === 'اشتراك ملازم' || inv.subType === 'ملازم') && allNotesList.length > 0) {
     modal.querySelectorAll('.indiv-note-delivered-checkbox').forEach(cb => {

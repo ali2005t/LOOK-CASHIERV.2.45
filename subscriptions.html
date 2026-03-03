@@ -105,9 +105,12 @@
             <option value="">-- بدون اشتراك مرتبط --</option>
           </select>
         </div>
-        <label id="name-label" for="name" style="display:block;margin-bottom:6px;font-weight:bold;color:#1976d2;">اسم
+        <label id="name-label" for="name" style="display:block;margin-bottom:4px;font-weight:bold;color:#1976d2;">📝 اسم
           الاشتراك</label>
-        <input type="text" placeholder="اسم الاشتراك" id="name" required />
+        <input type="text" placeholder="مثال: مقيد، اشتراك نصف سنة..." id="name" required />
+
+        <label for="type" style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">📂 نوع
+          الاشتراك</label>
         <select id="type">
           <option value="">اختر النوع</option>
           <option value="كورسات">كورسات</option>
@@ -115,6 +118,9 @@
           <option value="محاضرات فردية">محاضرات فردية</option>
           <option value="ملازم فردية">ملازم فردية</option>
         </select>
+
+        <label for="grade" style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">🎓
+          الفرقة الدراسية</label>
         <select id="grade">
           <option value="">اختر الفرقة</option>
           <option value="أولى">أولى</option>
@@ -122,8 +128,15 @@
           <option value="ثالثة">ثالثة</option>
           <option value="رابعة">رابعة</option>
         </select>
-        <input type="number" id="price" placeholder="السعر بالجنيه" required />
-        <input type="number" id="stock" placeholder="الكمية المتوفرة (اختياري للملازم)" />
+
+        <label for="price" style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">💰
+          السعر (بالجنيه)</label>
+        <input type="number" id="price" placeholder="مثال: 250" required />
+
+        <label for="stock" style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">📦
+          المخزون المتوفر <small style="color:#888;font-weight:normal;">(عدد النسخ)</small></label>
+        <input type="number" id="stock" placeholder="مثال: 50" />
+
         <button type="submit">إضافة</button>
       </form>
     </section>
@@ -146,6 +159,56 @@
         </thead>
         <tbody id="subscriptions-table-body">
           <!-- الاشتراكات هتتحط هنا -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== قسم كروت الأونلاين المستقل ===== -->
+    <section class="form-section" style="margin-top:32px;">
+      <h2 style="color:#1976d2;">🃏 كروت الأونلاين</h2>
+      <form id="add-online-card-form">
+        <label style="display:block;margin-bottom:4px;font-weight:bold;color:#1976d2;">📝 اسم الكرت</label>
+        <input type="text" id="card-name" placeholder="مثال: كود نصف سنة أونلاين" required />
+
+        <label style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">📂 نوع
+          الكرت</label>
+        <select id="card-type">
+          <option value="للاشتراكات">للاشتراكات (بيتسلم تلقائياً مع أي اشتراك)</option>
+          <option value="فردي">فردي (للبيع بمفرده)</option>
+        </select>
+
+        <label style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">🔢 عدد الكروت /
+          اشتراك <small style="color:#888;font-weight:normal;">(كام كرت بيتسلم مع كل اشتراك)</small></label>
+        <input type="number" id="card-per-sub" placeholder="مثال: 1" min="1" value="1" />
+
+        <label style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">💰 السعر (للفردي)
+          <small style="color:#888;font-weight:normal;">(اتركه 0 لو مرتبط باشتراك)</small></label>
+        <input type="number" id="card-price" placeholder="مثال: 50" min="0" value="0" />
+
+        <label style="display:block;margin-top:10px;margin-bottom:4px;font-weight:bold;color:#1976d2;">📦 الكمية
+          المتوفرة <small style="color:#888;font-weight:normal;">(إجمالي عدد الكروت في المخزون)</small></label>
+        <input type="number" id="card-stock" placeholder="مثال: 100" min="0" />
+
+        <button type="submit" style="margin-top:14px;">إضافة كرت</button>
+      </form>
+    </section>
+
+    <section class="table-section" style="margin-top:16px;">
+      <h2>كل كروت الأونلاين</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>اسم الكرت</th>
+            <th>النوع</th>
+            <th>كروت / اشتراك</th>
+            <th>💰 السعر</th>
+            <th>📦 المخزون</th>
+            <th>تعديل</th>
+            <th>حذف</th>
+          </tr>
+        </thead>
+        <tbody id="online-cards-table-body">
+          <!-- الكروت هتتحط هنا -->
         </tbody>
       </table>
     </section>

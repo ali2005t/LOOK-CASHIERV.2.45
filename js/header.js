@@ -1,5 +1,63 @@
 // ===== MOBILE MENU TOGGLE & ACTIVE PAGE INDICATOR =====
-window.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('DOMContentLoaded', function () {
+  // === REGISTER SERVICE WORKER ===
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW Registered', reg))
+      .catch(err => console.log('SW Error', err));
+  }
+
+  // === PWA INSTALLATION LOGIC ===
+  let deferredPrompt;
+  const headerInstallBtn = document.getElementById('pwa-install-header-btn');
+  const installId = 'pwa-install-btn';
+
+  const triggerInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to install prompt: ${outcome}`);
+      deferredPrompt = null;
+      if (headerInstallBtn) headerInstallBtn.style.display = 'none';
+      const sidebarBtn = document.getElementById(installId);
+      if (sidebarBtn) sidebarBtn.style.display = 'none';
+    } else {
+      alert('المتصفح لا يسمح بالتثبيت حالياً. تأكد من استخدام Chrome أو Edge وأن الموقع يعمل ب HTTPS.');
+    }
+  };
+
+  if (headerInstallBtn) {
+    headerInstallBtn.addEventListener('click', triggerInstall);
+  }
+
+  // إنشاء زر السايدبار برضه للاحتياط
+  const sidebarUl = document.querySelector('.sidebar ul');
+  if (sidebarUl && !document.getElementById(installId)) {
+    const installLi = document.createElement('li');
+    installLi.id = installId;
+    installLi.innerHTML = `
+      <a href="#" style="background: #e8f5e9; color: #2e7d32; border: 1px dashed #2e7d32; border-radius: 8px; margin: 10px 15px; padding: 10px; display: flex; align-items: center; gap: 10px; text-decoration: none; justify-content: center; font-weight: bold;">
+        <i class="fas fa-download"></i>
+        <span>تثبيت البرنامج</span>
+      </a>
+    `;
+    sidebarUl.appendChild(installLi);
+    installLi.addEventListener('click', triggerInstall);
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    console.log('PWA Prompt Captured');
+  });
+
+  window.addEventListener('appinstalled', (evt) => {
+    console.log('App was installed');
+    if (headerInstallBtn) headerInstallBtn.style.display = 'none';
+    const installLi = document.getElementById(installId);
+    if (installLi) installLi.style.display = 'none';
+  });
+
   const mobileMenuBtn = document.getElementById('mobile-menu-btn');
   const mobileMenu = document.querySelector('.mobile-menu');
   const menuLinks = document.querySelectorAll('.mobile-menu-list a');
@@ -21,21 +79,21 @@ window.addEventListener('DOMContentLoaded', function() {
 
   if (mobileMenuBtn && mobileMenu) {
     // Toggle menu when button is clicked
-    mobileMenuBtn.addEventListener('click', function() {
+    mobileMenuBtn.addEventListener('click', function () {
       mobileMenu.classList.toggle('active');
     });
 
     // Close menu when a link is clicked
     menuLinks.forEach(link => {
-      link.addEventListener('click', function() {
+      link.addEventListener('click', function () {
         mobileMenu.classList.remove('active');
       });
     });
 
     // Close menu when clicking outside
-    document.addEventListener('click', function(event) {
-      if (!event.target.closest('.mobile-menu-btn') && 
-          !event.target.closest('.mobile-menu')) {
+    document.addEventListener('click', function (event) {
+      if (!event.target.closest('.mobile-menu-btn') &&
+        !event.target.closest('.mobile-menu')) {
         mobileMenu.classList.remove('active');
       }
     });
@@ -43,7 +101,7 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 // اختصارات لوحة المفاتيح العامة
-window.addEventListener('keydown', function(e) {
+window.addEventListener('keydown', function (e) {
   // Ctrl+P: طباعة
   if (e.ctrlKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
@@ -92,16 +150,16 @@ function blockCashierOnOtherPages() {
       document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;"><div style="background:#fff;padding:48px 32px;border-radius:18px;box-shadow:0 4px 32px #1976d244;text-align:center;max-width:400px;margin:auto;"><div style="font-size:2em;color:#1976d2;font-weight:bold;margin-bottom:18px;">لا تحاول بالتدخل فيما لايعينك</div><div style="font-size:1.3em;color:#43a047;margin-bottom:12px;">تابع عملك يا صديقي <span style='font-size:2em;'>😊</span></div></div></div>`;
       document.body.style.background = '#e3f2fd';
     }
-  } catch(e) {console.error('blockCashierOnOtherPages error:',e);}
+  } catch (e) { console.error('blockCashierOnOtherPages error:', e); }
 }
 window.addEventListener('DOMContentLoaded', blockCashierOnOtherPages);
 import { signOut, getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // تفعيل زر تسجيل الخروج في جميع الصفحات
-window.addEventListener("DOMContentLoaded", function() {
+window.addEventListener("DOMContentLoaded", function () {
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) {
-    logoutBtn.addEventListener("click", function(event) {
+    logoutBtn.addEventListener("click", function (event) {
       event.preventDefault(); // Prevent default action
       const modal = document.getElementById("logout-modal");
       if (modal) {
@@ -137,11 +195,11 @@ window.addEventListener("DOMContentLoaded", function() {
         }
       });
     }
-  } catch(e) {}
+  } catch (e) { }
 });
 
 // Debugging: Log hidden sidebar items
-window.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.sidebar ul li').forEach(li => {
     const link = li.getAttribute('data-link');
     if (li.style.display === 'none') {
@@ -171,7 +229,7 @@ async function updateCenterHeader() {
         if (name) localStorage.setItem('centerName', name);
         if (logo) localStorage.setItem('centerLogo', logo);
       }
-    } catch (e) {}
+    } catch (e) { }
   }
   // تحديث في الهيدر
   const nameEl = document.getElementById('center-name');
@@ -191,7 +249,7 @@ window.addEventListener('storage', updateCenterHeader);
 window.addEventListener('DOMContentLoaded', updateCenterHeader);
 
 // Temporary: Add 'daily_closing' to user permissions if not present
-window.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('DOMContentLoaded', function () {
   const perms = JSON.parse(localStorage.getItem('userPermissions') || '[]');
   if (!perms.includes('daily_closing')) {
     perms.push('daily_closing');
@@ -214,19 +272,19 @@ function showNotification(message, type = "success") {
 }
 
 // Handle Temporary Logout and End Shift
-window.addEventListener("DOMContentLoaded", function() {
+window.addEventListener("DOMContentLoaded", function () {
   const tempLogoutBtn = document.getElementById("temp-logout-btn");
   const endShiftBtn = document.getElementById("end-shift-btn");
 
   if (tempLogoutBtn) {
-    tempLogoutBtn.addEventListener("click", function() {
+    tempLogoutBtn.addEventListener("click", function () {
       // Temporary Logout: Redirect to login page
       window.location.href = "login.html";
     });
   }
 
   if (endShiftBtn) {
-    endShiftBtn.addEventListener("click", async function() {
+    endShiftBtn.addEventListener("click", async function () {
       try {
         const { db } = await import("./firebase.js");
         const { collection, addDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
@@ -262,7 +320,7 @@ window.addEventListener("DOMContentLoaded", function() {
 // ================================
 function initializeBreadcrumb() {
   const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
-  
+
   const pageNames = {
     'dashboard': 'لوحة التحكم',
     'cashier': 'الكاشير',
@@ -289,7 +347,7 @@ function initializeBreadcrumb() {
       breadcrumbContainer = document.getElementById('breadcrumb-container');
     }
   }
- }
+}
 
 
 // استدعاء عند تحميل الصفحة
@@ -316,11 +374,11 @@ window.addEventListener('resize', () => {
 // ================================
 function improveTableDisplay() {
   const tables = document.querySelectorAll('table');
-  
+
   tables.forEach(table => {
     const rows = table.querySelectorAll('tbody tr');
     const headers = table.querySelectorAll('thead th');
-    
+
     if (headers.length > 0 && rows.length > 0) {
       rows.forEach(row => {
         const cells = row.querySelectorAll('td');
@@ -343,9 +401,9 @@ function initializeMenuToggle() {
   const isMobile = window.innerWidth <= 900;
   const menuToggleBtn = document.getElementById('menu-toggle-btn');
   const sidebar = document.querySelector('.sidebar');
-  
+
   if (!menuToggleBtn || !sidebar) return;
-  
+
   // إظهار/إخفاء الزر حسب حجم الشاشة
   if (isMobile) {
     menuToggleBtn.style.display = 'flex';
@@ -354,7 +412,7 @@ function initializeMenuToggle() {
   } else {
     menuToggleBtn.style.display = 'none';
   }
-  
+
   // إنشاء overlay إذا لم يكن موجود
   let overlay = document.getElementById('sidebar-overlay-mobile');
   if (!overlay && isMobile) {
@@ -373,7 +431,7 @@ function initializeMenuToggle() {
     `;
     document.body.appendChild(overlay);
   }
-  
+
   // وظائف Toggle
   if (menuToggleBtn) {
     menuToggleBtn.addEventListener('click', (e) => {
@@ -381,7 +439,7 @@ function initializeMenuToggle() {
       toggleSidebar(sidebar, overlay);
     });
   }
-  
+
   // إغلاق عند النقر على overlay
   if (overlay) {
     overlay.addEventListener('click', () => {
@@ -397,14 +455,14 @@ function initializeMenuToggle() {
         // منع السلوك الافتراضي
         e.preventDefault();
         e.stopPropagation();
-        
+
         // حفظ الرابط للانتقال إليه
         const href = link.getAttribute('href');
-        
+
         if (isMobile) {
           closeSidebar(sidebar, overlay);
         }
-        
+
         // التأكد من الانتقال للصفحة الجديدة
         if (href && href.trim()) {
           setTimeout(() => {
