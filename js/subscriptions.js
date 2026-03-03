@@ -33,6 +33,7 @@ document.getElementById("add-subscription-form").addEventListener("submit", asyn
   const type = document.getElementById("type").value;
   const grade = document.getElementById("grade").value;
   const price = parseFloat(document.getElementById("price").value);
+  const stock = parseInt(document.getElementById("stock").value) || 0;
   const linkedSub = document.getElementById("linked-subscription")?.value || "";
 
   if (!name || !type || !grade || !price) {
@@ -44,10 +45,11 @@ document.getElementById("add-subscription-form").addEventListener("submit", asyn
     name,
     type,
     grade,
-    price
+    price,
+    stock
   };
   // إذا كان نوع الاشتراك "ملزمة فردية" وبه اشتراك مرتبط، أضفه
-  if(type === "ملازم فردية" && linkedSub) {
+  if (type === "ملازم فردية" && linkedSub) {
     subData.linkedSubscription = linkedSub;
   }
   await addDoc(collection(db, "subscriptions"), subData);
@@ -72,6 +74,7 @@ async function loadSubscriptions() {
       <td>${sub.type}</td>
       <td>${sub.grade}</td>
       <td>${sub.price} ج</td>
+      <td>${sub.stock || 0}</td>
       <td>
         <label class="toggle-switch">
           <input type="checkbox" class="toggle-publish-checkbox" data-id="${docSnap.id}" ${sub.published ? 'checked' : ''} />
@@ -84,30 +87,30 @@ async function loadSubscriptions() {
     rows.push(tr);
   });
   rows.forEach(tr => tbody.appendChild(tr));
-    // إضافة حدث Toggle النشر/الإخفاء
-    tbody.querySelectorAll('.toggle-publish-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('change', async function() {
-        const id = checkbox.getAttribute('data-id');
-        const tr = checkbox.closest('tr');
-        checkbox.disabled = true;
-        try {
-          const docRef = doc(db, "subscriptions", id);
-          const docSnap = await getDoc(docRef);
-          if(docSnap.exists()) {
-            const isNowPublished = checkbox.checked;
-            await updateDoc(docRef, { published: isNowPublished });
-            window.showNotification(`تم ${isNowPublished ? 'نشر ✓' : 'إخفاء ✗'} الاشتراك بنجاح`, 'success');
-            loadSubscriptions();
-          }
-        } catch(e) {
-          checkbox.checked = !checkbox.checked; // عكس الحالة عند الخطأ
-          window.showNotification('حدث خطأ أثناء تغيير الحالة: '+(e.message||e),'error');
+  // إضافة حدث Toggle النشر/الإخفاء
+  tbody.querySelectorAll('.toggle-publish-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async function () {
+      const id = checkbox.getAttribute('data-id');
+      const tr = checkbox.closest('tr');
+      checkbox.disabled = true;
+      try {
+        const docRef = doc(db, "subscriptions", id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const isNowPublished = checkbox.checked;
+          await updateDoc(docRef, { published: isNowPublished });
+          window.showNotification(`تم ${isNowPublished ? 'نشر ✓' : 'إخفاء ✗'} الاشتراك بنجاح`, 'success');
+          loadSubscriptions();
         }
-        checkbox.disabled = false;
-      });
+      } catch (e) {
+        checkbox.checked = !checkbox.checked; // عكس الحالة عند الخطأ
+        window.showNotification('حدث خطأ أثناء تغيير الحالة: ' + (e.message || e), 'error');
+      }
+      checkbox.disabled = false;
     });
+  });
   // تفعيل السحب والإفلات
-  if(window.Sortable) {
+  if (window.Sortable) {
     // إذا كان هناك Sortable سابق، دمره أولاً
     if (tbody._sortableInstance) {
       tbody._sortableInstance.destroy();
@@ -123,12 +126,12 @@ async function loadSubscriptions() {
         scroll: true,
         scrollSensitivity: 60,
         scrollSpeed: 20,
-        onStart: function(evt) {
+        onStart: function (evt) {
           document.body.style.userSelect = 'none';
         },
         onEnd: function (evt) {
           document.body.style.userSelect = '';
-          const ids = Array.from(tbody.querySelectorAll('tr')).map(tr=>tr.getAttribute('data-id'));
+          const ids = Array.from(tbody.querySelectorAll('tr')).map(tr => tr.getAttribute('data-id'));
           localStorage.setItem('subscriptionsOrder', JSON.stringify(ids));
           window.showNotification('تم تغيير ترتيب الصفوف (محلياً فقط)', 'info');
         }
@@ -156,6 +159,7 @@ window.editSubscription = async (id) => {
       <input id='edit-type' value='${sub.type}' style='width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #cde4ff;'>
       <input id='edit-grade' value='${sub.grade}' style='width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #cde4ff;'>
       <input id='edit-price' type='number' value='${sub.price}' style='width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #cde4ff;'>
+      <input id='edit-stock' type='number' value='${sub.stock || 0}' placeholder='المخزون' style='width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #cde4ff;'>
       <div style='display:flex;gap:10px;justify-content:flex-end;'>
         <button id='save-edit-sub' style='background:#1976d2;color:#fff;padding:8px 22px;border:none;border-radius:7px;cursor:pointer;'>حفظ</button>
         <button id='cancel-edit-sub' style='background:#eee;color:#333;padding:8px 22px;border:none;border-radius:7px;cursor:pointer;'>إلغاء</button>
@@ -169,6 +173,7 @@ window.editSubscription = async (id) => {
     const newType = document.getElementById('edit-type').value;
     const newGrade = document.getElementById('edit-grade').value;
     const newPrice = parseFloat(document.getElementById('edit-price').value);
+    const newStock = parseInt(document.getElementById('edit-stock').value) || 0;
     if (!newName || !newType || !newGrade || !newPrice) {
       window.showNotification('يرجى ملء كل الحقول', 'error');
       return;
@@ -177,7 +182,8 @@ window.editSubscription = async (id) => {
       name: newName,
       type: newType,
       grade: newGrade,
-      price: newPrice
+      price: newPrice,
+      stock: newStock
     });
     modal.remove();
     window.showNotification('تم حفظ التعديلات بنجاح', 'success');
@@ -217,15 +223,15 @@ window.deleteSubscription = async (id) => {
 // عند تحميل الصفحة، إذا كان هناك ترتيب محفوظ في localStorage، طبقه
 window.addEventListener('DOMContentLoaded', () => {
   const order = localStorage.getItem('subscriptionsOrder');
-  if(order) {
+  if (order) {
     const ids = JSON.parse(order);
     const tbody = document.getElementById('subscriptions-table-body');
-    if(tbody && ids && ids.length) {
+    if (tbody && ids && ids.length) {
       // إعادة ترتيب الصفوف حسب ids
       const trs = Array.from(tbody.querySelectorAll('tr'));
       ids.forEach(id => {
-        const tr = trs.find(tr=>tr.getAttribute('data-id')===id);
-        if(tr) tbody.appendChild(tr);
+        const tr = trs.find(tr => tr.getAttribute('data-id') === id);
+        if (tr) tbody.appendChild(tr);
       });
     }
   }

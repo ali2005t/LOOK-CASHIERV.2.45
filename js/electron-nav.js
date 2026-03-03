@@ -24,10 +24,12 @@ const electronAPI = {
 window.electronAPI = electronAPI;
 
 // Auto-detect if we're in Electron and use IPC
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   // Check if we're in Electron
   if (window.require && window.require('electron')) {
     console.log('Electron environment detected, enabling IPC navigation');
+  } else if (window.__TAURI__) {
+    console.log('Tauri environment detected, using regular navigation');
   } else {
     console.log('Browser environment detected, using regular navigation');
   }

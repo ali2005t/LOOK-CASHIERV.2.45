@@ -1,92 +1,95 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>جاري التحميل...</title>
-  <link rel="stylesheet" href="css/splash.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جاري التحميل...</title>
+    <link rel="stylesheet" href="css/splash.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 </head>
+
 <body>
-  <div class="splash-container">
-    <div class="splash-content">
-      <div class="splash-logo">
-        <!-- شعار السنتر يتم تحميله تلقائيًا من الإعدادات -->
-        <img id="center-logo" src="" alt="شعار السنتر" style="display:none;" />
-      </div>
+    <div class="splash-container">
+        <div class="splash-content">
+            <div class="splash-logo">
+                <!-- شعار السنتر يتم تحميله تلقائيًا من الإعدادات -->
+                <img id="center-logo" src="" alt="شعار السنتر" style="display:none;" />
+            </div>
 
-      <h1 class="splash-title" id="splash-center-name">
-        مرحبًا بك في نظام إدارة السنتر
-      </h1>
+            <h1 class="splash-title" id="splash-center-name">
+                مرحبًا بك في نظام إدارة السنتر
+            </h1>
 
-      <p class="splash-subtitle">
-        نظام إدارة متكامل للمراكز التعليمية
-      </p>
-      
-      <!-- Progress Bar -->
-      <div class="progress-container">
-        <div class="progress-bar" id="progress-bar"></div>
-      </div>
-      
-      <!-- Loader -->
-      <div class="splash-loader">
-        <div class="loader-spinner"></div>
-      </div>
-      
-      <div class="splash-desc">جاري التحميل، يُرجى الانتظار...</div>
-      
-      <!-- Loading Steps -->
-      <div class="loading-steps">
-        <div class="step" id="step-1">
-          <i class="fas fa-check-circle"></i>
-          <span>تحميل الإعدادات</span>
+            <p class="splash-subtitle">
+                نظام إدارة متكامل للمراكز التعليمية
+            </p>
+
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+
+            <!-- Loader -->
+            <div class="splash-loader">
+                <div class="loader-spinner"></div>
+            </div>
+
+            <div class="splash-desc">جاري التحميل، يُرجى الانتظار...</div>
+
+            <!-- Loading Steps -->
+            <div class="loading-steps">
+                <div class="step" id="step-1">
+                    <i class="fas fa-check-circle"></i>
+                    <span>تحميل الإعدادات</span>
+                </div>
+                <div class="step" id="step-2">
+                    <i class="fas fa-circle"></i>
+                    <span>تحميل البيانات</span>
+                </div>
+                <div class="step" id="step-3">
+                    <i class="fas fa-circle"></i>
+                    <span>تجهيز الواجهة</span>
+                </div>
+            </div>
         </div>
-        <div class="step" id="step-2">
-          <i class="fas fa-circle"></i>
-          <span>تحميل البيانات</span>
-        </div>
-        <div class="step" id="step-3">
-          <i class="fas fa-circle"></i>
-          <span>تجهيز الواجهة</span>
-        </div>
-      </div>
     </div>
-  </div>
-  
-  <!-- Footer في الأسفل -->
-  <footer class="splash-footer">
-    <p>© 2025 <strong>LOOK CENTER</strong> | نظام متقدم لإدارة المراكز التعليمية</p>
-    <p style="font-size:13px;color:#ffeb3b;margin-top:8px;">
-      <i class="fas fa-code"></i> Powered by <strong>Eng. Lol</strong>
-    </p>
-  </footer>
-  
-  <script>
-    // تحميل شعار السنتر تلقائيًا من الإعدادات
-    const logo = document.getElementById('center-logo');
-    const logoPath = localStorage.getItem('centerLogo');
-    const centerName =
-      localStorage.getItem('centerName') ||
-      'مرحبًا بك في نظام إدارة السنتر';
-    
-    if (logoPath) {
-      logo.src = logoPath;
-      logo.style.display = 'block';
-    }
-    
-    document.getElementById('splash-center-name').textContent = centerName;
-    
-    // محاكاة تحميل مع progress bar
-    let progress = 0;
-    const progressBar = document.getElementById('progress-bar');
-    const progressInterval = setInterval(() => {
-      progress += Math.random() * 30;
-      if (progress > 90) progress = 90;
-      progressBar.style.width = progress + '%';
-    }, 500);
-  </script>
-  
-  <script src="js/splash.js"></script>
-  <script src="js/zoom-controls.js"></script>
+
+    <!-- Footer في الأسفل -->
+    <footer class="splash-footer">
+        <p>© 2025 <strong>LOOK CENTER</strong> | نظام متقدم لإدارة المراكز التعليمية</p>
+        <p style="font-size:13px;color:#ffeb3b;margin-top:8px;">
+            <i class="fas fa-code"></i> Powered by <strong>Eng. Lol</strong>
+        </p>
+    </footer>
+
+    <script>
+        // تحميل شعار السنتر تلقائيًا من الإعدادات
+        const logo = document.getElementById('center-logo');
+        const logoPath = localStorage.getItem('centerLogo');
+        const centerName =
+            localStorage.getItem('centerName') ||
+            'مرحبًا بك في نظام إدارة السنتر';
+
+        if (logoPath) {
+            logo.src = logoPath;
+            logo.style.display = 'block';
+        }
+
+        document.getElementById('splash-center-name').textContent = centerName;
+
+        // محاكاة تحميل مع progress bar
+        let progress = 0;
+        const progressBar = document.getElementById('progress-bar');
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 30;
+            if (progress > 90) progress = 90;
+            progressBar.style.width = progress + '%';
+        }, 500);
+    </script>
+
+    <script src="js/splash.js"></script>
+    <script src="js/zoom-controls.js"></script>
 </body>
+
 </html>

@@ -54,27 +54,27 @@ addUserForm.addEventListener("submit", async (e) => {
   const password = document.getElementById("user-password").value;
   const type = document.getElementById("user-type").value;
   let permissions = [];
-  
+
   // جمع صلاحيات الصفحات
   const permsInputs = document.querySelectorAll('.perm-checkbox');
-  if(permsInputs.length) {
-    permissions = Array.from(permsInputs).filter(x=>x.checked).map(x=>x.value);
-  } else if(type === 'مدير') {
-    permissions = allPages.map(p=>p.key);
-  } else if(type === 'كاشير') {
-    permissions = ['cashier','invoices','unsubscribed'];
+  if (permsInputs.length) {
+    permissions = Array.from(permsInputs).filter(x => x.checked).map(x => x.value);
+  } else if (type === 'مدير') {
+    permissions = allPages.map(p => p.key);
+  } else if (type === 'كاشير') {
+    permissions = ['cashier', 'invoices', 'unsubscribed'];
   }
-  
+
   // جمع صلاحيات العمليات
   const operationInputs = document.querySelectorAll('.operation-checkbox');
-  if(operationInputs.length) {
-    const operationPerms = Array.from(operationInputs).filter(x=>x.checked).map(x=>x.value);
+  if (operationInputs.length) {
+    const operationPerms = Array.from(operationInputs).filter(x => x.checked).map(x => x.value);
     permissions = [...permissions, ...operationPerms];
-  } else if(type === 'مدير') {
+  } else if (type === 'مدير') {
     // المدير يحصل على كل الصلاحيات
-    permissions = [...permissions, ...operationPermissions.map(p=>p.key)];
+    permissions = [...permissions, ...operationPermissions.map(p => p.key)];
   }
-  
+
   if (!fullname || !username || !password || !type) return window.showNotification("يرجى ملء كل الحقول", 'error');
   try {
     // إنشاء المستخدم في Authentication
@@ -130,7 +130,7 @@ async function loadUsers() {
     `;
     tbody.appendChild(tr);
   });
-  
+
   // تفعيل/تعطيل المستخدم بـ Toggle
   document.querySelectorAll('.toggle-user-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', async () => {
@@ -139,7 +139,7 @@ async function loadUsers() {
       let userDoc;
       snapshot.forEach(docSnap => { if (docSnap.id === id) userDoc = docSnap; });
       if (!userDoc) return;
-      
+
       checkbox.disabled = true;
       try {
         await updateDoc(doc(db, "users", id), { active: checkbox.checked });
@@ -152,7 +152,7 @@ async function loadUsers() {
       checkbox.disabled = false;
     });
   });
-  
+
   // تعديل بيانات المستخدم
   document.querySelectorAll('.edit-user').forEach(btn => {
     btn.onclick = async () => {
@@ -164,41 +164,41 @@ async function loadUsers() {
       const user = userDoc.data();
       const modal = document.createElement('div');
       modal.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0003;z-index:3000;display:flex;align-items:center;justify-content:center;overflow-y:auto;';
-      
+
       // واجهة اختيار صفحات الصلاحية بـ Toggle Switches
       let permsHtml = '<div style="margin-bottom:15px;padding-bottom:15px;border-bottom:1px solid #e0e0e0;"><h4 style="margin:0 0 10px 0;color:#1976d2;">صفحات النظام:</h4>';
       allPages.forEach(p => {
         permsHtml += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px;background:#f5f9ff;border-radius:6px;">
           <span style="flex:1;">${p.label}</span>
           <label class="toggle-switch">
-            <input type="checkbox" class="perm-checkbox" value="${p.key}" ${user.permissions&&user.permissions.includes(p.key)?'checked':''} />
+            <input type="checkbox" class="perm-checkbox" value="${p.key}" ${user.permissions && user.permissions.includes(p.key) ? 'checked' : ''} />
             <span class="toggle-slider"></span>
           </label>
         </div>`;
       });
       permsHtml += '</div>';
-      
+
       // صلاحيات العمليات بـ Toggle Switches
       let operPermsHtml = '<div style="margin-bottom:15px;"><h4 style="margin:0 0 10px 0;color:#ff9800;">صلاحيات العمليات:</h4>';
       operationPermissions.forEach(p => {
         operPermsHtml += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px;background:#fff8e1;border-radius:6px;">
           <span style="flex:1;">${p.label}</span>
           <label class="toggle-switch">
-            <input type="checkbox" class="operation-checkbox" value="${p.key}" ${user.permissions&&user.permissions.includes(p.key)?'checked':''} />
+            <input type="checkbox" class="operation-checkbox" value="${p.key}" ${user.permissions && user.permissions.includes(p.key) ? 'checked' : ''} />
             <span class="toggle-slider"></span>
           </label>
         </div>`;
       });
       operPermsHtml += '</div>';
-      
+
       modal.innerHTML = `
         <div style="background:#fff;padding:28px 22px;border-radius:12px;min-width:400px;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 4px 32px #90caf988;">
           <h3 style='margin-bottom:18px;'>تعديل بيانات المستخدم</h3>
           <input id='edit-fullname' value='${user.fullname}' placeholder="الاسم الكامل" style='width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #cde4ff;box-sizing:border-box;'>
           <input id='edit-username' value='${user.username}' placeholder="اسم المستخدم" style='width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #cde4ff;box-sizing:border-box;'>
           <select id='edit-type' style='width:100%;margin-bottom:15px;padding:8px;border-radius:6px;border:1px solid #cde4ff;box-sizing:border-box;'>
-            <option value='مدير' ${user.type==='مدير'?'selected':''}>مدير</option>
-            <option value='كاشير' ${user.type==='كاشير'?'selected':''}>كاشير</option>
+            <option value='مدير' ${user.type === 'مدير' ? 'selected' : ''}>مدير</option>
+            <option value='كاشير' ${user.type === 'كاشير' ? 'selected' : ''}>كاشير</option>
           </select>
           ${permsHtml}
           ${operPermsHtml}
@@ -214,8 +214,8 @@ async function loadUsers() {
         const newFullname = document.getElementById('edit-fullname').value;
         const newUsername = document.getElementById('edit-username').value;
         const newType = document.getElementById('edit-type').value;
-        const pagePerms = Array.from(document.querySelectorAll('.perm-checkbox')).filter(x=>x.checked).map(x=>x.value);
-        const operPerms = Array.from(document.querySelectorAll('.operation-checkbox')).filter(x=>x.checked).map(x=>x.value);
+        const pagePerms = Array.from(document.querySelectorAll('.perm-checkbox')).filter(x => x.checked).map(x => x.value);
+        const operPerms = Array.from(document.querySelectorAll('.operation-checkbox')).filter(x => x.checked).map(x => x.value);
         const newPerms = [...pagePerms, ...operPerms];
         if (!newFullname || !newUsername || !newType) return window.showNotification('يرجى ملء كل الحقول', 'error');
         await updateDoc(doc(db, "users", id), {

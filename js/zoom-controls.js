@@ -2,6 +2,8 @@
 let ipcRenderer = null;
 
 // محاولة تحميل ipcRenderer من Electron (إن كان متاحًا)
+// أو التحقق من وجود Tauri
+const isTauri = !!window.__TAURI__;
 try {
   ipcRenderer = require('electron').ipcRenderer;
 } catch (e) {
@@ -15,16 +17,17 @@ class ZoomControls {
     const savedZoom = localStorage.getItem('zoomLevel');
     this.zoomLevel = savedZoom ? parseFloat(savedZoom) : 0;
     this.isElectron = ipcRenderer !== null;
+    this.isTauri = isTauri;
     this.init();
   }
 
   init() {
     // تطبيق مستوى الزوم المحفوظ مباشرة
     this.applyZoom();
-    
+
     // إنشاء عناصر التحكم في الـ Zoom
     this.createZoomUI();
-    
+
     // إذا كان Electron متاحًا
     if (this.isElectron && ipcRenderer) {
       // استقبال مستوى الـ Zoom من الـ Main Process
@@ -104,12 +107,14 @@ class ZoomControls {
   performZoomIn() {
     this.zoomLevel += 0.1;
     if (this.zoomLevel > 2) this.zoomLevel = 2;
-    
+
     // حفظ مستوى الزوم
     localStorage.setItem('zoomLevel', this.zoomLevel);
-    
+
     if (this.isElectron && ipcRenderer) {
       ipcRenderer.send('zoom-in');
+    } else if (this.isTauri) {
+      window.__TAURI__.invoke('zoom_in');
     } else {
       // في المتصفح العادي - استخدم CSS zoom
       this.applyZoom();
@@ -120,12 +125,14 @@ class ZoomControls {
   performZoomOut() {
     this.zoomLevel -= 0.1;
     if (this.zoomLevel < -0.5) this.zoomLevel = -0.5;
-    
+
     // حفظ مستوى الزوم
     localStorage.setItem('zoomLevel', this.zoomLevel);
-    
+
     if (this.isElectron && ipcRenderer) {
       ipcRenderer.send('zoom-out');
+    } else if (this.isTauri) {
+      window.__TAURI__.invoke('zoom_out');
     } else {
       // في المتصفح العادي - استخدم CSS zoom
       this.applyZoom();
@@ -135,12 +142,14 @@ class ZoomControls {
 
   performZoomReset() {
     this.zoomLevel = 0;
-    
+
     // حفظ مستوى الزوم
     localStorage.setItem('zoomLevel', this.zoomLevel);
-    
+
     if (this.isElectron && ipcRenderer) {
       ipcRenderer.send('zoom-reset');
+    } else if (window.__TAURI__) {
+      window.__TAURI__.invoke('zoom_reset');
     } else {
       // في المتصفح العادي - أعد تعيين الـ zoom
       this.applyZoom();

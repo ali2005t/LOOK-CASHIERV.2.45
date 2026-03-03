@@ -70,7 +70,7 @@ async function loadInvoices() {
   snapshot.forEach(docSnap => {
     const inv = docSnap.data();
     // استبعاد الفواتير الفردية من صفحة الفواتير الرئيسية
-    if(inv.subType === 'ملازم فردية' || inv.subType === 'محاضرات فردية') return;
+    if (inv.subType === 'ملازم فردية' || inv.subType === 'محاضرات فردية') return;
     let type = inv.subType || '-';
     let num = counters[type] || 1;
     allInvoices.push({
@@ -87,7 +87,8 @@ async function loadInvoices() {
       status: inv.status || 'تم الحفظ',
       recipient: inv.recipient || '-',
       notes: inv.notes || '-',
-      linkedSubTypes: inv.linkedSubTypes || []
+      linkedSubTypes: inv.linkedSubTypes || [],
+      indivNotes: inv.indivNotes || []   // للملازم: قائمة الملازم المرتبطة وحالة تسليمها
     });
     counters[type] = num + 1;
   });
@@ -99,7 +100,7 @@ async function loadInvoices() {
 // عرض الفواتير في الجدول
 function renderInvoicesTable() {
   tableBody.innerHTML = '';
-  if(filteredInvoices.length === 0) {
+  if (filteredInvoices.length === 0) {
     tableBody.innerHTML = "<tr><td colspan='12'>لا توجد نتائج مطابقة.</td></tr>";
     return;
   }
@@ -109,7 +110,7 @@ function renderInvoicesTable() {
   try {
     userPermissions = JSON.parse(localStorage.getItem('userPermissions') || '[]');
     userType = localStorage.getItem('userType') || '';
-  } catch(e) {}
+  } catch (e) { }
   // الكاشير لا يستطيع الحذف إلا إذا سمح المدير بصلاحية حذف الفواتير
   const canDeleteInvoice = userPermissions.includes('delete_invoice');
   filteredInvoices.forEach(inv => {
@@ -123,6 +124,14 @@ function renderInvoicesTable() {
     if (canDeleteInvoice) {
       actions += `<button class='delete-invoice-btn' data-id='${inv.id}' style='background:#f44336;color:#fff;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;'>حذف</button>`;
     }
+    // ملخص تسليم الملازم
+    let deliverySummary = '-';
+    if ((inv.subType === 'ملازم' || inv.subType === 'اشتراك ملازم') && inv.indivNotes && inv.indivNotes.length > 0) {
+      const total = inv.indivNotes.length;
+      const delivered = inv.indivNotes.filter(n => n.delivered).length;
+      const allDone = delivered === total;
+      deliverySummary = `<span style="font-weight:bold;color:${allDone ? '#388e3c' : '#e65100'};background:${allDone ? '#e8f5e9' : '#fff3e0'};padding:3px 10px;border-radius:8px;">${delivered}/${total} ✔</span>`;
+    }
     tr.innerHTML = `
       <td>${inv.num}</td>
       <td>${inv.student}</td>
@@ -130,12 +139,13 @@ function renderInvoicesTable() {
       <td style='font-size:13px;line-height:1.7;'>${itemsText}</td>
       <td>${inv.subType}</td>
       <td>${inv.grade}</td>
-      <td>${(inv.items||[]).reduce((sum,x)=>sum+(x.price||0),0)} ج</td>
+      <td>${(inv.items || []).reduce((sum, x) => sum + (x.price || 0), 0)} ج</td>
       <td>${inv.payment}</td>
       <td>${inv.studyType}</td>
       <td>${inv.date}</td>
-      <td>${inv.notes||'-'}</td>
+      <td>${inv.notes || '-'}</td>
       <td>${recipientCell}</td>
+      <td style='text-align:center;'>${deliverySummary}</td>
       <td style='display:flex;gap:6px;justify-content:center;align-items:center;'>${actions}</td>
     `;
     tableBody.appendChild(tr);
@@ -193,9 +203,9 @@ function renderInvoicesTable() {
 }
 
 // إضافة أحداث التصفية على عناصر التحكم
-['filter-invoice-num','filter-type','filter-grade','filter-study-type','search-student','search-phone','filter-recipient'].forEach(id => {
+['filter-invoice-num', 'filter-type', 'filter-grade', 'filter-study-type', 'search-student', 'search-phone', 'filter-recipient'].forEach(id => {
   const el = document.getElementById(id);
-  if(el) el.addEventListener('input', filterInvoices);
+  if (el) el.addEventListener('input', filterInvoices);
 });
 
 // تعبئة قائمة المستلمين تلقائياً من الفواتير
@@ -225,7 +235,7 @@ function filterInvoices() {
     linkedStudents = allInvoices.filter(inv => inv.student && inv.student.includes(student)).map(inv => inv.student);
   }
   filteredInvoices = allInvoices.filter(inv => {
-    const matchNum = !invoiceNum || (inv.num+'' === invoiceNum);
+    const matchNum = !invoiceNum || (inv.num + '' === invoiceNum);
     const matchSubType = !subType || inv.subType === subType;
     const matchGrade = !grade || inv.grade === grade;
     const matchStudyType = !studyType || inv.studyType === studyType;
@@ -251,29 +261,37 @@ async function showInvoiceModal(id) {
   // جلب جميع الملازم المرتبطة بنفس الفرقة من الاشتراكات والأسعار
   let allNotesList = [];
   if ((inv.subType === 'اشتراك ملازم' || inv.subType === 'ملازم') && inv.grade) {
-    // عرض فقط الملازم المرتبطة بالاشتراك (indivNotes)
-    if (Array.isArray(inv.indivNotes)) {
-      allNotesList = inv.indivNotes.map(n => ({ name: n.name, price: n.price, delivered: n.delivered }));
+    if (Array.isArray(inv.indivNotes) && inv.indivNotes.length > 0) {
+      // indivNotes موجودة: استخدمها مباشرة
+      allNotesList = inv.indivNotes.map(n => ({ name: n.name, price: n.price, delivered: n.delivered || false }));
+    } else {
+      // indivNotes مش موجودة (فاتورة قديمة): اجلب الملازم الفردية الحالية من subscriptions
+      const subsSnap = await getDocs(collection(db, "subscriptions"));
+      subsSnap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.type === 'ملازم فردية' && data.grade === inv.grade && (data.published === undefined || data.published)) {
+          allNotesList.push({ name: data.name, price: data.price, delivered: false });
+        }
+      });
+      // احفظ القائمة في الفاتورة علشان المرة الجاية تتحمل منها
+      if (allNotesList.length > 0) {
+        try {
+          await updateDoc(doc(db, 'invoices', id), { indivNotes: allNotesList });
+        } catch (e) { console.warn('Could not save indivNotes:', e); }
+      }
     }
   }
   // مربعات استلام الملازم في اشتراك ملازم
   let notesDeliveryBoxes = '';
-  // إذا كانت هناك ملازم فردية (indivNotes) استخدمها لحساب العداد
-  let notesArr = Array.isArray(inv.indivNotes) && inv.indivNotes.length > 0 ? inv.indivNotes : (typeof itemsWithDelivery !== 'undefined' && Array.isArray(itemsWithDelivery) ? itemsWithDelivery : inv.items);
-  if ((inv.subType === 'اشتراك ملازم' || inv.subType === 'ملازم') && Array.isArray(notesArr) && notesArr.length > 0) {
+  // استخدم allNotesList مباشرة للعداد والعرض
+  let notesArr = allNotesList.length > 0 ? allNotesList : [];
+  if ((inv.subType === 'اشتراك ملازم' || inv.subType === 'ملازم') && notesArr.length > 0) {
     const deliveredCount = notesArr.filter(x => x.delivered).length;
     const remainingCount = notesArr.length - deliveredCount;
     notesDeliveryBoxes = `<div style='margin:18px 0 0 0;'>
       <b style='color:#1976d2;'>عدد الملازم المستلمة: ${deliveredCount}</b>
       <span style='margin-right:18px;color:#e53935;'>الملازم المتبقية: ${remainingCount}</span>
-      <div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;'>` +
-      notesArr.filter(x => x.delivered).map((x,i) =>
-        `<div style='background:#e3f2fd;border-radius:10px;padding:10px 18px;min-width:120px;display:flex;align-items:center;gap:8px;'>
-          <span style='font-weight:500;'>${x.name}</span>
-          <span style='color:#388e3c;font-weight:bold;'>${x.price} ج</span>
-          <span style='margin-right:8px;color:#43a047;font-weight:bold;'>&#10004; تم الاستلام</span>
-        </div>`
-      ).join('') + '</div></div>';
+    </div>`;
   }
   // --- مربعات استلام الملازم الفردية حسب الفرقة ---
   let indivNotesBoxes = '';
@@ -281,14 +299,14 @@ async function showInvoiceModal(id) {
     indivNotesBoxes = `<div style='margin:18px 0 0 0;'>
       <b style='color:#1976d2;'>جميع الملازم المرتبطة بالفرقة:</b>
       <div class='indiv-notes-list'>
-        ${allNotesList.map((x,i) =>
-          `<div class='indiv-note-box'>
+        ${allNotesList.map((x, i) =>
+      `<div class='indiv-note-box'>
             <span class='note-name'>${x.name}</span>
             <span class='note-price'>${x.price} ج</span>
             <input type='checkbox' class='indiv-note-delivered-checkbox' data-idx='${i}' ${x.delivered ? 'checked' : ''} title='تغيير حالة الاستلام'>
             <span class='delivered-status ${x.delivered ? 'delivered' : 'not-delivered'}'>${x.delivered ? 'تم الاستلام' : 'لم يستلم بعد'}</span>
           </div>`
-        ).join('')}
+    ).join('')}
       </div>
     </div>`;
   }
@@ -324,36 +342,36 @@ async function showInvoiceModal(id) {
         <table style='width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;line-height:1.8;'>
           <tr style='background:#f5f5f5;'>
             <td style='padding:10px;text-align:right;font-weight:bold;color:#1976d2;border-bottom:1px solid #e0e0e0;width:40%;'>اسم الطالب:</td>
-            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.student||'-'}</td>
+            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.student || '-'}</td>
           </tr>
           <tr style='background:#fff;'>
             <td style='padding:10px;text-align:right;font-weight:bold;color:#1976d2;border-bottom:1px solid #e0e0e0;'>رقم الهاتف:</td>
-            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;color:#388e3c;font-weight:bold;'>${inv.phone||'-'}</td>
+            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;color:#388e3c;font-weight:bold;'>${inv.phone || '-'}</td>
           </tr>
           <tr>
             <td style='padding:10px;text-align:right;font-weight:bold;color:#1976d2;border-bottom:1px solid #e0e0e0;'>الفرقة:</td>
-            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.grade||'-'}</td>
+            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.grade || '-'}</td>
           </tr>
           <tr style='background:#f5f5f5;'>
             <td style='padding:10px;text-align:right;font-weight:bold;color:#1976d2;border-bottom:1px solid #e0e0e0;'>نوع الاشتراك:</td>
-            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.subType||'-'}</td>
+            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.subType || '-'}</td>
           </tr>
           <tr>
             <td style='padding:10px;text-align:right;font-weight:bold;color:#1976d2;border-bottom:1px solid #e0e0e0;'>الانتظام:</td>
-            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.studyType||'-'}</td>
+            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.studyType || '-'}</td>
           </tr>
         </table>
         
         ${inv.subType === 'كورسات' && inv.linkedSubTypes && inv.linkedSubTypes.includes('ملازم') ? `<div style='margin:12px 0;padding:12px;background:#fff3e0;border-left:4px solid #ff9800;border-radius:4px;text-align:right;font-size:14px;font-weight:bold;color:#e65100;'>ⓘ كود اشتراك الملازم: <span style='color:#ff6f00;font-size:16px;'>${(typeof inv.num !== 'undefined' && inv.num !== null) ? inv.num + 1 : '-'}</span></div>` : ''}
         
         <div style='margin-top:12px;margin-bottom:12px;padding:10px;background:#e8f5e9;border:2px solid #388e3c;border-radius:6px;'>
-          <div style='font-size:13px;color:#2e7d32;margin-bottom:4px;'><b>طريقة الدفع:</b> ${inv.payment||'-'}</div>
+          <div style='font-size:13px;color:#2e7d32;margin-bottom:4px;'><b>طريقة الدفع:</b> ${inv.payment || '-'}</div>
         </div>
         
         <div style='margin-bottom:12px;'>
           <div style='font-weight:bold;color:#1976d2;margin-bottom:8px;text-align:right;padding-bottom:6px;border-bottom:2px solid #1565c0;'>📋 العناصر</div>
           <table style='width:100%;border-collapse:collapse;font-size:14px;'>
-            ${(inv.items||[]).map((x, idx)=>`
+            ${(inv.items || []).map((x, idx) => `
             <tr style='${idx % 2 === 0 ? "background:#f9f9f9;" : ""}'>
               <td style='padding:10px;text-align:right;border-bottom:1px solid #e0e0e0;'>${x.name}</td>
               <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;color:#388e3c;font-weight:bold;'>${x.price} ج</td>
@@ -366,7 +384,7 @@ async function showInvoiceModal(id) {
         
         <div style='margin:12px 0;padding:12px;background:#e8f5e9;border:2px solid #388e3c;border-radius:6px;text-align:center;'>
           <div style='font-size:12px;color:#2e7d32;margin-bottom:4px;'>الإجمالي</div>
-          <div style='font-size:18px;font-weight:bold;color:#1b5e20;'>${(inv.items||[]).reduce((sum,x)=>sum+(x.price||0),0)} ج</div>
+          <div style='font-size:18px;font-weight:bold;color:#1b5e20;'>${(inv.items || []).reduce((sum, x) => sum + (x.price || 0), 0)} ج</div>
         </div>
         
         ${inv.payment === 'تقسيط' && inv.installment ? `
@@ -392,7 +410,7 @@ async function showInvoiceModal(id) {
           </tr>
           <tr>
             <td style='padding:10px;text-align:right;font-weight:bold;color:#1976d2;border-bottom:1px solid #e0e0e0;'>ملاحظات:</td>
-            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.notes||'لا توجد'}</td>
+            <td style='padding:10px;text-align:left;border-bottom:1px solid #e0e0e0;'>${inv.notes || 'لا توجد'}</td>
           </tr>
         </table>
         
@@ -419,12 +437,12 @@ async function showInvoiceModal(id) {
   const hiddenEditFields = document.createElement('div');
   hiddenEditFields.style.display = 'none';
   hiddenEditFields.innerHTML = `
-    <input id='edit-student' type='text' value='${inv.student||'-'}' style='display:none;' />
-    <input id='edit-grade' type='text' value='${inv.grade||'-'}' style='display:none;' />
-    <input id='edit-subType' type='text' value='${inv.subType||'-'}' style='display:none;' />
-    <input id='edit-studyType' type='text' value='${inv.studyType||'-'}' style='display:none;' />
-    <input id='edit-payment' type='text' value='${inv.payment||'-'}' style='display:none;' />
-    <input id='edit-notes' type='text' value='${inv.notes||''}' style='display:none;' />
+    <input id='edit-student' type='text' value='${inv.student || '-'}' style='display:none;' />
+    <input id='edit-grade' type='text' value='${inv.grade || '-'}' style='display:none;' />
+    <input id='edit-subType' type='text' value='${inv.subType || '-'}' style='display:none;' />
+    <input id='edit-studyType' type='text' value='${inv.studyType || '-'}' style='display:none;' />
+    <input id='edit-payment' type='text' value='${inv.payment || '-'}' style='display:none;' />
+    <input id='edit-notes' type='text' value='${inv.notes || ''}' style='display:none;' />
   `;
   modal.appendChild(hiddenEditFields);
 
@@ -511,14 +529,14 @@ async function showInvoiceModal(id) {
   // --- تفعيل تحديث حالة الاستلام ---
   if (isNotesSubscription) {
     modal.querySelectorAll('.item-delivered-checkbox').forEach(cb => {
-      cb.addEventListener('change', async function() {
-  const idx = +cb.getAttribute('data-idx');
-  itemsWithDelivery[idx].delivered = cb.checked;
-  // تحديث في قاعدة البيانات
-  await updateDoc(doc(db, 'invoices', id), { items: itemsWithDelivery });
-  showNotification(cb.checked ? 'تم تسجيل استلام الملزمة' : 'تم إلغاء الاستلام', 'success');
-  // جلب الفاتورة من قاعدة البيانات من جديد لإظهار التغيير فورًا
-  setTimeout(() => showInvoiceModal(id), 200);
+      cb.addEventListener('change', async function () {
+        const idx = +cb.getAttribute('data-idx');
+        itemsWithDelivery[idx].delivered = cb.checked;
+        // تحديث في قاعدة البيانات
+        await updateDoc(doc(db, 'invoices', id), { items: itemsWithDelivery });
+        showNotification(cb.checked ? 'تم تسجيل استلام الملزمة' : 'تم إلغاء الاستلام', 'success');
+        // جلب الفاتورة من قاعدة البيانات من جديد لإظهار التغيير فورًا
+        setTimeout(() => showInvoiceModal(id), 200);
       });
     });
   }
@@ -526,14 +544,14 @@ async function showInvoiceModal(id) {
   if ((inv.subType === 'اشتراك ملازم' || inv.subType === 'ملازم') && allNotesList.length > 0) {
     modal.querySelectorAll('.indiv-note-delivered-checkbox').forEach(cb => {
       cb.disabled = false;
-      cb.addEventListener('change', async function() {
-  const idx = +cb.getAttribute('data-idx');
-  allNotesList[idx].delivered = cb.checked;
-  // احفظ الحالة الجديدة في الفاتورة (indivNotes)
-  await updateDoc(doc(db, 'invoices', id), { indivNotes: allNotesList });
-  showNotification(cb.checked ? 'تم تسجيل استلام الملزمة' : 'تم إلغاء الاستلام', 'success');
-  // جلب الفاتورة من قاعدة البيانات من جديد لإظهار التغيير فورًا
-  setTimeout(() => showInvoiceModal(id), 200);
+      cb.addEventListener('change', async function () {
+        const idx = +cb.getAttribute('data-idx');
+        allNotesList[idx].delivered = cb.checked;
+        // احفظ الحالة الجديدة في الفاتورة (indivNotes)
+        await updateDoc(doc(db, 'invoices', id), { indivNotes: allNotesList });
+        showNotification(cb.checked ? 'تم تسجيل استلام الملزمة' : 'تم إلغاء الاستلام', 'success');
+        // جلب الفاتورة من قاعدة البيانات من جديد لإظهار التغيير فورًا
+        setTimeout(() => showInvoiceModal(id), 200);
       });
     });
   }
@@ -551,7 +569,7 @@ async function showInvoiceModal(id) {
         showNotification('❌ لم يتم تفعيل وضع التعديل', 'error');
         return;
       }
-      
+
       // جلب القيم الجديدة من الحقول
       const newStudent = document.getElementById('edit-student').value.trim() || inv.student;
       const newPhone = document.getElementById('edit-phone').value.trim() || inv.phone;
@@ -560,24 +578,24 @@ async function showInvoiceModal(id) {
       const newStudyType = document.getElementById('edit-studyType').value.trim() || inv.studyType;
       const newPayment = document.getElementById('edit-payment').value.trim() || inv.payment;
       const newNotes = document.getElementById('edit-notes').value.trim() || inv.notes;
-      
+
       // التحقق من وجود تغييرات فعلية
-      const hasChanges = newStudent !== inv.student || 
-                        newPhone !== inv.phone || 
-                        newGrade !== inv.grade || 
-                        newSubType !== inv.subType || 
-                        newStudyType !== inv.studyType || 
-                        newPayment !== inv.payment || 
-                        newNotes !== inv.notes;
-      
+      const hasChanges = newStudent !== inv.student ||
+        newPhone !== inv.phone ||
+        newGrade !== inv.grade ||
+        newSubType !== inv.subType ||
+        newStudyType !== inv.studyType ||
+        newPayment !== inv.payment ||
+        newNotes !== inv.notes;
+
       if (!hasChanges) {
         showNotification('⚠️ لم تتم إدخال أي تعديلات', 'info');
         return;
       }
-      
+
       // إظهار إشعار التحميل
       showNotification('⏳ جاري حفظ التعديلات...', 'info');
-      
+
       // تحديث البيانات في قاعدة البيانات
       await updateDoc(doc(db, 'invoices', id), {
         student: newStudent,
@@ -587,49 +605,48 @@ async function showInvoiceModal(id) {
         studyType: newStudyType,
         payment: newPayment,
         notes: newNotes,
-        items: items,
         lastModified: new Date()
       });
-      
+
       // إغلاق وضع التعديل بسلاسة
       const editBtn = document.getElementById('edit-invoice-btn');
       const saveBtn = document.getElementById('save-invoice-edit');
       editContainer.style.animation = 'slideUp 0.3s ease-out';
-      
+
       setTimeout(() => {
         if (editContainer && editContainer.parentElement) editContainer.remove();
         editBtn.innerHTML = '<i class="fa fa-edit"></i> تعديل';
         editBtn.style.background = '#ff9800';
         saveBtn.style.display = 'none';
       }, 300);
-      
+
       showNotification('✅ تم حفظ التعديلات بنجاح!', 'success');
-      
+
       // إعادة تحميل البيانات بعد ثانية
       setTimeout(() => {
         modal.classList.remove('active');
         modal.style.display = 'none';
         loadInvoices();
       }, 1000);
-      
+
     } catch (error) {
       console.error('خطأ في حفظ التعديلات:', error);
       showNotification('❌ حدث خطأ أثناء حفظ التعديلات: ' + error.message, 'error');
     }
   };
-  
+
   // زر التعديل - إظهار/إخفاء الحقول القابلة للتعديل
   document.getElementById('edit-invoice-btn').onclick = () => {
     const editBtn = document.getElementById('edit-invoice-btn');
     const saveBtn = document.getElementById('save-invoice-edit');
     const existingContainer = document.getElementById('edit-fields-container');
-    
+
     if (!existingContainer) {
       // تفعيل وضع التعديل
       const editContainer = document.createElement('div');
       editContainer.id = 'edit-fields-container';
       editContainer.style.cssText = 'background:linear-gradient(135deg, #f5f9ff 0%, #e3f2fd 100%);padding:20px;border-radius:12px;margin-top:15px;border:2px solid #1976d2;';
-      
+
       const fields = [
         { id: 'edit-student', label: '👤 اسم الطالب', value: inv.student || '-', icon: 'fa-user' },
         { id: 'edit-phone', label: '📱 رقم الهاتف', value: inv.phone || '-', icon: 'fa-phone' },
@@ -639,61 +656,61 @@ async function showInvoiceModal(id) {
         { id: 'edit-payment', label: '💳 طريقة الدفع', value: inv.payment || '-', icon: 'fa-credit-card' },
         { id: 'edit-notes', label: '📝 ملاحظات', value: inv.notes || '-', icon: 'fa-sticky-note' }
       ];
-      
+
       fields.forEach(field => {
         const fieldDiv = document.createElement('div');
         fieldDiv.style.cssText = 'margin-bottom:15px;';
-        
+
         const label = document.createElement('label');
         label.style.cssText = 'display:block;margin-bottom:8px;color:#1565c0;font-weight:bold;font-size:14px;padding-left:5px;';
         label.innerHTML = `<i class="fa ${field.icon}" style="margin-left:8px;"></i> ${field.label}`;
-        
+
         const input = document.createElement('input');
         input.type = 'text';
         input.id = field.id;
         input.value = field.value;
         input.style.cssText = 'width:100%;padding:12px;border:2px solid #cde4ff;border-radius:8px;box-sizing:border-box;font-family:Arial;font-size:15px;transition:all 0.3s;';
-        input.onfocus = function() { this.style.borderColor = '#1976d2'; this.style.boxShadow = '0 0 6px #1976d244'; };
-        input.onblur = function() { this.style.borderColor = '#cde4ff'; this.style.boxShadow = 'none'; };
-        
+        input.onfocus = function () { this.style.borderColor = '#1976d2'; this.style.boxShadow = '0 0 6px #1976d244'; };
+        input.onblur = function () { this.style.borderColor = '#cde4ff'; this.style.boxShadow = 'none'; };
+
         fieldDiv.appendChild(label);
         fieldDiv.appendChild(input);
         editContainer.appendChild(fieldDiv);
       });
-      
-      modal.querySelector('.modal-box').appendChild(editContainer);
-      
+
+      (modal.querySelector('[style*="border-radius:18px"]') || modal.firstElementChild).appendChild(editContainer);
+
       editBtn.innerHTML = '<i class="fa fa-times"></i> إلغاء التعديل';
       editBtn.style.background = '#f44336';
       editBtn.style.transition = 'all 0.3s';
       saveBtn.style.display = 'flex';
       saveBtn.style.animation = 'slideDown 0.3s ease-out';
-      
+
     } else {
       // إلغاء وضع التعديل
       existingContainer.style.animation = 'slideUp 0.3s ease-out';
       setTimeout(() => {
         if (existingContainer) existingContainer.remove();
       }, 300);
-      
+
       editBtn.innerHTML = '<i class="fa fa-edit"></i> تعديل';
       editBtn.style.background = '#ff9800';
       saveBtn.style.display = 'none';
     }
   };
-  
+
   // زر حفظ الفاتورة كصورة
   document.getElementById('download-invoice-btn').onclick = async () => {
     try {
       const element = document.getElementById('printable-invoice');
       if (!element) return showNotification('لم يتم العثور على عنصر الفاتورة', 'error');
-      
+
       showNotification('جاري تحويل الفاتورة إلى صورة...', 'info');
-      
+
       // استخدام html2canvas لتحويل العنصر إلى صورة
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      
+
       script.onload = async () => {
         const canvas = await html2canvas(element, {
           backgroundColor: '#ffffff',
@@ -702,27 +719,27 @@ async function showInvoiceModal(id) {
           allowTaint: true,
           useCORS: true
         });
-        
+
         // تحويل الـ canvas إلى صورة وتحميلها
         const link = document.createElement('a');
         link.href = canvas.toDataURL('image/png');
         link.download = `فاتورة_${inv.num || 'بدون_رقم'}_${new Date().getTime()}.png`;
         link.click();
-        
+
         showNotification('✓ تم حفظ الفاتورة كصورة بنجاح', 'success');
       };
-      
+
       script.onerror = () => {
         showNotification('حدث خطأ في تحميل مكتبة التحويل', 'error');
       };
-      
+
       document.head.appendChild(script);
     } catch (error) {
       console.error('Error downloading invoice:', error);
       showNotification('حدث خطأ أثناء حفظ الصورة', 'error');
     }
   };
-  
+
   const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
   if (confirmPaymentBtn) {
     confirmPaymentBtn.onclick = async () => {
@@ -743,11 +760,11 @@ async function showInvoiceModal(id) {
         text-align: right;
         font-family: Arial, sans-serif;
       `;
-      
-      const totalAmount = (inv.items||[]).reduce((sum,x)=>sum+(x.price||0),0);
+
+      const totalAmount = (inv.items || []).reduce((sum, x) => sum + (x.price || 0), 0);
       const paidAmount = inv.installment?.paid || 0;
       const remainingAmount = totalAmount - paidAmount;
-      
+
       dialog.innerHTML = `
         <h3 style='color:#1976d2;margin-top:0;'>تأكيد استكمال الدفع</h3>
         <div style='margin:15px 0;line-height:1.8;'>
@@ -764,7 +781,7 @@ async function showInvoiceModal(id) {
           <button id='confirm-no' style='background:#e53935;color:#fff;padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-weight:bold;'>إلغاء</button>
         </div>
       `;
-      
+
       const overlay = document.createElement('div');
       overlay.style.cssText = `
         position: fixed;
@@ -775,19 +792,19 @@ async function showInvoiceModal(id) {
         background: rgba(0,0,0,0.5);
         z-index: 99998;
       `;
-      
+
       document.body.appendChild(overlay);
       document.body.appendChild(dialog);
-      
+
       document.getElementById('confirm-no').onclick = () => {
         overlay.remove();
         dialog.remove();
       };
-      
+
       document.getElementById('confirm-yes').onclick = async () => {
         const newPaidAmount = parseInt(document.getElementById('confirm-paid-amount').value) || remainingAmount;
         const newRemainingAmount = totalAmount - (paidAmount + newPaidAmount);
-        
+
         // تحديث الفاتورة
         await updateDoc(doc(db, 'invoices', id), {
           payment: newRemainingAmount <= 0 ? 'مدفوع كامل' : 'تقسيط',
@@ -797,7 +814,7 @@ async function showInvoiceModal(id) {
             remaining: Math.max(0, newRemainingAmount)
           }
         });
-        
+
         overlay.remove();
         dialog.remove();
         showNotification('تم تحديث حالة الدفع بنجاح', 'success');
@@ -835,12 +852,12 @@ function showNotification(msg, type = 'info') {
   setTimeout(() => {
     notif.style.transition = 'opacity 0.7s';
     notif.style.opacity = '0';
-    setTimeout(()=>{if(notif)notif.remove();}, 800);
+    setTimeout(() => { if (notif) notif.remove(); }, 800);
   }, 1800);
 }
 
 // --- تصدير الفواتير إلى Excel ---
-document.getElementById('export-excel-btn').onclick = function() {
+document.getElementById('export-excel-btn').onclick = function () {
   try {
     if (!filteredInvoices.length) {
       showNotification('لا توجد بيانات لتصديرها', 'error');
@@ -851,14 +868,14 @@ document.getElementById('export-excel-btn').onclick = function() {
       'رقم الفاتورة': inv.num,
       'اسم الطالب': inv.student,
       'رقم الهاتف': inv.phone,
-      'العناصر': (inv.items||[]).map(x=>x.name+" ("+x.price+" ج)").join('، '),
+      'العناصر': (inv.items || []).map(x => x.name + " (" + x.price + " ج)").join('، '),
       'نوع الاشتراك': inv.subType,
       'الفرقة': inv.grade,
-      'المبلغ المدفوع': (inv.items||[]).reduce((sum,x)=>sum+(x.price||0),0),
+      'المبلغ المدفوع': (inv.items || []).reduce((sum, x) => sum + (x.price || 0), 0),
       'نوع الفاتورة': inv.payment,
       'انتظام/انتساب': inv.studyType,
       'التاريخ': inv.date,
-      'الملاحظات': inv.notes||'-'
+      'الملاحظات': inv.notes || '-'
     }));
     // إنشاء ملف Excel
     const ws = XLSX.utils.json_to_sheet(data);
@@ -866,14 +883,14 @@ document.getElementById('export-excel-btn').onclick = function() {
     XLSX.utils.book_append_sheet(wb, ws, 'الفواتير');
     XLSX.writeFile(wb, 'invoices.xlsx');
     showNotification('تم تصدير الفواتير إلى Excel بنجاح', 'success');
-  } catch(e) {
-    showNotification('حدث خطأ أثناء التصدير: '+e.message, 'error');
+  } catch (e) {
+    showNotification('حدث خطأ أثناء التصدير: ' + e.message, 'error');
   }
 };
 
 window.addEventListener("DOMContentLoaded", loadInvoices);
 // تفعيل اختصارات لوحة المفاتيح
-window.addEventListener('keydown', function(e) {
+window.addEventListener('keydown', function (e) {
   // Ctrl+F للتركيز على البحث عن اسم الطالب
   if (e.ctrlKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();

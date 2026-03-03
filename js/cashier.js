@@ -1,26 +1,26 @@
 // زر الطباعة في الكاشير
 const printBtn = document.getElementById('print-btn');
 if (printBtn) {
-  printBtn.addEventListener('click', function() {
+  printBtn.addEventListener('click', function () {
     // تهيئة printModal إذا لم يكن مهيأ
     if (!printModal) {
       printModal = document.getElementById('print-modal');
     }
-    if(printModal) printModal.style.display = 'flex';
-    
+    if (printModal) printModal.style.display = 'flex';
+
     // ربط زر تأكيد الطباعة
     const confirmPrintBtn = document.getElementById('confirm-print');
     const cancelPrintBtn = document.getElementById('cancel-print');
-    
+
     if (confirmPrintBtn) {
-      confirmPrintBtn.onclick = function() {
+      confirmPrintBtn.onclick = function () {
         printInvoice();
       };
     }
-    
+
     if (cancelPrintBtn) {
-      cancelPrintBtn.onclick = function() {
-        if(printModal) printModal.style.display = 'none';
+      cancelPrintBtn.onclick = function () {
+        if (printModal) printModal.style.display = 'none';
       };
     }
   });
@@ -36,12 +36,12 @@ function blockCashierOnOtherPages() {
       document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;"><div style="background:#fff;padding:48px 32px;border-radius:18px;box-shadow:0 4px 32px #1976d244;text-align:center;max-width:400px;margin:auto;"><div style="font-size:2em;color:#1976d2;font-weight:bold;margin-bottom:18px;">لا تحاول بالتدخل فيما لايعينك</div><div style="font-size:1.3em;color:#43a047;margin-bottom:12px;">تابع عملك يا صديقي <span style='font-size:2em;'>😊</span></div></div></div>`;
       document.body.style.background = '#e3f2fd';
     }
-  } catch(e) {}
+  } catch (e) { }
 }
 window.addEventListener('DOMContentLoaded', blockCashierOnOtherPages);
 
 import { db } from './firebase.js';
-import { collection, getDocs, addDoc, Timestamp, doc, getDoc, setDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { collection, getDocs, addDoc, Timestamp, doc, getDoc, setDoc, updateDoc, increment } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 let selectedGrade = "";
@@ -58,7 +58,7 @@ const installmentFields = document.getElementById('installment-fields');
 const paymentMethod = document.getElementById('payment-method');
 
 if (paymentMethod && installmentFields) {
-  paymentMethod.addEventListener('change', function() {
+  paymentMethod.addEventListener('change', function () {
     if (this.value === 'تقسيط') {
       installmentFields.style.display = '';
     } else {
@@ -89,7 +89,7 @@ if (installmentPaidInput && installmentTotalInput && installmentRemainingInput) 
 
   // إضافة معالج لحقل المبلغ المدفوع
   installmentPaidInput.addEventListener('input', calculateRemaining);
-  
+
   // إضافة معالج لحقل الإجمالي
   installmentTotalInput.addEventListener('input', calculateRemaining);
 }
@@ -114,12 +114,12 @@ function updateUserNameInHeader() {
             username = u.username;
           }
         });
-        
+
         const centerName = document.getElementById('center-name');
         if (centerName) {
           centerName.textContent = 'مرحباً ' + username;
         }
-        
+
         // حفظ في localStorage
         localStorage.setItem('currentUserName', username);
       } catch (error) {
@@ -240,26 +240,26 @@ async function getItemsForSubType(subType, grade) {
   const snapshot = await getDocs(collection(db, "subscriptions"));
   const items = [];
   if (subType === "ملازم فردية") {
-    snapshot.forEach(doc => {
-      const data = doc.data();
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
       if (data.type === "ملازم فردية" && data.grade === grade && (data.published === undefined || data.published)) {
-        items.push({ name: data.name, price: data.price });
+        items.push({ id: docSnap.id, name: data.name, price: data.price, stock: data.stock || 0 });
       }
     });
   } else if (subType === "محاضرات فردية") {
-    snapshot.forEach(doc => {
-      const data = doc.data();
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
       if (data.type === "محاضرات فردية" && data.grade === grade && (data.published === undefined || data.published)) {
-        items.push({ name: data.name, price: data.price });
+        items.push({ id: docSnap.id, name: data.name, price: data.price, stock: data.stock || 0 });
       }
     });
   } else {
     // منطق الاشتراكات العادي
     const dbType = mapSubTypeToDbType(subType);
-    snapshot.forEach(doc => {
-      const data = doc.data();
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
       if (data.type === dbType && data.grade === grade && (data.published === undefined || data.published)) {
-        items.push({ name: data.name, price: data.price });
+        items.push({ id: docSnap.id, name: data.name, price: data.price, stock: data.stock || 0 });
       }
     });
   }
@@ -279,10 +279,10 @@ function updateInvoicePreview() {
   if (window.selectedItems && Array.isArray(window.selectedItems)) {
     items = window.selectedItems;
   }
-  
+
   // حساب مجموع العناصر
-  const totalAmount = items.reduce((sum,x)=>sum+(+x.price||0),0);
-  
+  const totalAmount = items.reduce((sum, x) => sum + (+x.price || 0), 0);
+
   // تحديث حقل الإجمالي في التقسيط تلقائياً
   if (payment === 'تقسيط') {
     const installmentTotalField = document.getElementById('installment-total');
@@ -290,7 +290,7 @@ function updateInvoicePreview() {
       installmentTotalField.value = totalAmount;
     }
   }
-  
+
   // استخدم اسم المستلم من فايربيس
   let recipient = currentRecipient || '-';
   // معاينة الفاتورة حسب النوع
@@ -300,9 +300,9 @@ function updateInvoicePreview() {
       رقم الفاتورة: <span id='invoice-num-preview'>${nextInvoiceNumber}</span>
       <button id='copy-invoice-num' style='background:#1976d2;color:#fff;border:none;border-radius:6px;padding:2px 10px;font-size:0.95em;cursor:pointer;'>نسخ</button>
     </div>`;
-  
+
   // لا تستدعي fetchNextInvoiceNumber هنا لتجنب التكرار غير الضروري
-  if(subType === 'محاضرات فردية' || subType === 'ملازم فردية') {
+  if (subType === 'محاضرات فردية' || subType === 'ملازم فردية') {
     html += `
       <div class='invoice-preview-grid'>
         <span>الفرقة:</span><span>${grade || '-'}</span>
@@ -310,8 +310,8 @@ function updateInvoicePreview() {
         <span>انتظام/انتساب:</span><span>${studyType || '-'}</span>
       </div>
       <div class='invoice-preview-items-box'>
-          ${items.length ? `<ul class='invoice-preview-items-list'>${items.map(x=>`<li><span class='preview-item-name' style='font-weight:500;'>${x.name}</span> <span class='preview-item-price' style='color:#388e3c;font-weight:bold;'>${x.price} ج</span></li>`).join('')}</ul>` : '<div>لا يوجد عناصر</div>'}
-        <div class='invoice-preview-total'><b>المجموع:</b> <span>${items.reduce((sum,x)=>sum+(+x.price||0),0)} ج</span></div>
+          ${items.length ? `<ul class='invoice-preview-items-list'>${items.map(x => `<li><span class='preview-item-name' style='font-weight:500;'>${x.name}</span> <span class='preview-item-price' style='color:#388e3c;font-weight:bold;'>${x.price} ج</span></li>`).join('')}</ul>` : '<div>لا يوجد عناصر</div>'}
+        <div class='invoice-preview-total'><b>المجموع:</b> <span>${items.reduce((sum, x) => sum + (+x.price || 0), 0)} ج</span></div>
       </div>
       <div class='invoice-preview-grid'>
         <span>طريقة الدفع:</span><span>${payment || '-'}</span>
@@ -340,9 +340,9 @@ function updateInvoicePreview() {
       <div class='invoice-preview-items-box'>
         <b>العناصر:</b>
         <ul class='invoice-preview-items-list'>
-          ${items.length ? items.map(x=>`<li><span class='preview-item-name' style='font-weight:500;'>${x.name}</span> <span class='preview-item-price' style='color:#388e3c;font-weight:bold;'>${x.price} ج</span></li>`).join('') : '<li>لا يوجد عناصر</li>'}
+          ${items.length ? items.map(x => `<li><span class='preview-item-name' style='font-weight:500;'>${x.name}</span> <span class='preview-item-price' style='color:#388e3c;font-weight:bold;'>${x.price} ج</span></li>`).join('') : '<li>لا يوجد عناصر</li>'}
         </ul>
-        <div class='invoice-preview-total'><b>المبلغ المدفوع:</b> <span>${items.reduce((sum,x)=>sum+(+x.price||0),0)} ج</span></div>
+        <div class='invoice-preview-total'><b>المبلغ المدفوع:</b> <span>${items.reduce((sum, x) => sum + (+x.price || 0), 0)} ج</span></div>
       </div>
       <div class='invoice-preview-grid'>
         <span>طريقة الدفع:</span><span>${payment || '-'}</span>
@@ -363,7 +363,7 @@ function updateInvoicePreview() {
   preview.innerHTML = html;
   // زر نسخ رقم الفاتورة
   const copyBtn = document.getElementById('copy-invoice-num');
-  if(copyBtn) {
+  if (copyBtn) {
     copyBtn.onclick = () => {
       const num = document.getElementById('invoice-num-preview').textContent;
       navigator.clipboard.writeText(num);
@@ -392,14 +392,14 @@ if (demoBtn) {
 // تعريف invoiceForm مرة واحدة فقط في الأعلى
 const invoiceForm = document.getElementById('invoice-form');
 if (invoiceForm) {
-  invoiceForm.addEventListener('submit', async function(e) {
+  invoiceForm.addEventListener('submit', async function (e) {
     e.preventDefault();
-    if(!validateForm()) return;
-    if(document.body.classList.contains('demo-mode')) {
+    if (!validateForm()) return;
+    if (document.body.classList.contains('demo-mode')) {
       showNotification('الوضع التجريبي: لن يتم حفظ الفاتورة فعليًا', 'info', 2500);
       return;
     }
-    
+
     // جمع جميع العناصر من جميع أنواع الاشتراك
     let allSelectedItems = [];
     let subTypesSelected = [];
@@ -409,23 +409,23 @@ if (invoiceForm) {
         allSelectedItems = allSelectedItems.concat(itemsBySubType[subType]);
       }
     });
-    
+
     if (allSelectedItems.length === 0) {
       showNotification('يرجى اختيار عناصر قبل الحفظ', 'warning', 2500);
       return;
     }
-    
+
     // فحص الصلاحيات - منع إنشاء فواتير الطلاب المشتركين إذا لم يسمح المدير
     const userType = localStorage.getItem('userType');
     const userPermissions = JSON.parse(localStorage.getItem('userPermissions') || '[]');
     const isSubscriberInvoice = subTypesSelected.some(st => st !== 'محاضرات فردية' && st !== 'ملازم فردية');
-    
+
     // المدير يمكنه عمل أي شيء بدون قيود
     if (isSubscriberInvoice && userType !== 'مدير' && !userPermissions.includes('create_subscriber_invoice')) {
       showNotification('❌ ليس لديك صلاحية لإنشاء فواتير الطلاب المشتركين. يرجى التواصل مع المدير.', 'error', 4000);
       return;
     }
-    
+
     // حفظ بيانات الفاتورة العامة
     let student = '', phone = '';
     const grade = selectedGrade;
@@ -438,19 +438,19 @@ if (invoiceForm) {
       paid: document.getElementById('installment-paid')?.value || '',
       remaining: document.getElementById('installment-remaining')?.value || ''
     };
-    
+
     // جلب بيانات الطالب إذا لم تكن محاضرات أو ملازم فردية
     const isIndividual = subTypesSelected.some(st => st === 'محاضرات فردية' || st === 'ملازم فردية');
-    if(!isIndividual) {
+    if (!isIndividual) {
       student = document.getElementById('student-name').value;
       phone = document.getElementById('phone').value;
     }
-    
+
     // إنشاء فاتورة منفصلة لكل نوع اشتراك
     let savedInvoiceRef = null;
     let invoicesToPrint = [];
     let invoiceIds = {}; // لتخزين معرفات الفواتير حسب النوع
-    
+
     // جلب بيانات السنتر من localStorage
     const centerName = localStorage.getItem('centerName') || 'اسم السنتر';
     const centerAddress = localStorage.getItem('centerAddress') || '';
@@ -458,16 +458,16 @@ if (invoiceForm) {
     const centerPhone2 = localStorage.getItem('centerPhone2') || '';
     const centerPhone3 = localStorage.getItem('centerPhone3') || '';
     const logoSrc = localStorage.getItem('logoSrc') || '';
-    
+
     try {
       // معالجة جميع الفواتير بنفس الطريقة (سواء عادية أو فودافون كاش)
       // الفرق فقط: فودافون لا تُحسب في المجموع المالي
-      
+
       // الخطوة الأولى: إنشاء جميع الفواتير
       for (let subType of subTypesSelected) {
         // الحصول على العناصر لهذا النوع
         const itemsForSubType = itemsBySubType[subType] || [];
-        
+
         // جمع معلومات السنتر
         const centerInfo = {
           name: centerName,
@@ -477,12 +477,12 @@ if (invoiceForm) {
           phone3: centerPhone3,
           logo: logoSrc
         };
-        
+
         const invoice = {
           grade: grade,
           studyType: studyType,
           subType: mapSubTypeToDbType(subType),
-          items: itemsForSubType.map(({subType, ...rest}) => rest), // حذف خاصية subType من العنصر
+          items: itemsForSubType.map(({ subType, ...rest }) => rest), // حذف خاصية subType من العنصر
           payment: payment,
           notes: notes,
           date: Timestamp.now(),
@@ -492,42 +492,65 @@ if (invoiceForm) {
           centerInfo: centerInfo,
           isVodafone: payment === 'فودافون كاش' // علامة تمييز فودافون كاش
         };
-        
+
         // إضافة بيانات الطالب إذا لم تكن محاضرات أو ملازم فردية
-        if(subType !== 'محاضرات فردية' && subType !== 'ملازم فردية') {
+        if (subType !== 'محاضرات فردية' && subType !== 'ملازم فردية') {
           invoice.student = student;
           invoice.phone = phone;
         }
-        
-        // إضافة الملازم الفردية إذا كان نوع الاشتراك "ملازم"
-        if(subType === 'اشتراك ملازم') {
+
+        // إضافة الملازم الفردية إذا كان نوع الاشتراك "ملازم" + خصم المخزون
+        if (subType === 'اشتراك ملازم') {
           const allSubsSnap = await getDocs(collection(db, "subscriptions"));
           const indivNotes = [];
-          allSubsSnap.forEach(doc => {
-            const data = doc.data();
-            if(data.type === 'ملازم فردية' && data.grade === grade && (data.published === undefined || data.published)) {
+          const linkedBookletIds = [];
+          const outOfStockNames = [];
+
+          allSubsSnap.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.type === 'ملازم فردية' && data.grade === grade && (data.published === undefined || data.published)) {
               indivNotes.push({ name: data.name, price: data.price, delivered: false });
+              linkedBookletIds.push(docSnap.id);
+              // تحقق من المخزون
+              if ((data.stock ?? 0) <= 0) {
+                outOfStockNames.push(data.name);
+              }
             }
           });
+
+          // تحذير لو في ملازم نفذت
+          if (outOfStockNames.length > 0) {
+            const names = outOfStockNames.join('، ');
+            showNotification(`⚠️ تحذير: المخزون نفذ للملازم التالية:\n${names}`, 'warning', 5000);
+          }
+
           invoice.indivNotes = indivNotes;
+          // خصم الكمية من مخزون كل ملزمة فردية مرتبطة بالفرقة
+          for (const bookletId of linkedBookletIds) {
+            try {
+              await updateDoc(doc(db, 'subscriptions', bookletId), { stock: increment(-1) });
+            } catch (stockErr) {
+              console.error('Failed to decrement linked booklet stock:', stockErr);
+            }
+          }
         }
-        
+
         // حفظ الفاتورة
         savedInvoiceRef = await addDoc(collection(db, 'invoices'), invoice);
         invoiceIds[mapSubTypeToDbType(subType)] = savedInvoiceRef.id;
         localStorage.setItem('invoice_saved', Date.now());
       }
-      
+
       // جمع قائمة أنواع الاشتراكات
       const subTypesList = subTypesSelected.map(st => mapSubTypeToDbType(st));
-      
+
       // جمع بيانات الفواتير للطباعة مباشرة
       const refreshInvoices = [];
       for (let dbSubType of subTypesList) {
         const invoiceId = invoiceIds[dbSubType];
         try {
           const docSnap = await getDoc(doc(db, 'invoices', invoiceId));
-          if(docSnap.exists()) {
+          if (docSnap.exists()) {
             refreshInvoices.push({
               ...docSnap.data(),
               id: invoiceId,
@@ -538,9 +561,24 @@ if (invoiceForm) {
           console.warn("Warning fetching invoice:", e);
         }
       }
-      
+
       showNotification('تم حفظ الفواتير بنجاح (' + refreshInvoices.length + ' فاتورة)', 'success', 2500);
-      
+
+      // خصم الكمية من المخزون لكل عنصر مباع
+      for (const item of allSelectedItems) {
+        if (item.id) {
+          try {
+            const subRef = doc(db, 'subscriptions', item.id);
+            await updateDoc(subRef, {
+              stock: increment(-1)
+            });
+            console.log(`Stock decremented for: ${item.name}`);
+          } catch (stockErr) {
+            console.error(`Error decrementing stock for ${item.name}:`, stockErr);
+          }
+        }
+      }
+
       // إعادة تعيين النموذج
       document.getElementById('invoice-form').reset();
       selectedItems = [];
@@ -550,9 +588,9 @@ if (invoiceForm) {
       updateInvoicePreview();
       updateSelectedItemsBox();
       resetSelectedItemsBox();
-      
+
       // عرض نافذة تأكيد الطباعة
-      if(refreshInvoices.length > 0) {
+      if (refreshInvoices.length > 0) {
         window.invoicesToPrint = refreshInvoices;
         showConfirmDialog(`هل تريد طباعة الفواتير الآن؟ (عدد الفواتير: ${refreshInvoices.length})`, () => {
           refreshInvoices.forEach(inv => {
@@ -582,24 +620,24 @@ function updateFormFields() {
   const paymentField = document.getElementById('payment-method')?.closest('.form-group,div');
   const notesField = document.getElementById('notes')?.closest('.form-group,div');
   const studyTypeField = document.getElementById('study-type')?.closest('.form-group,div');
-  if(subType === 'محاضرات فردية' || subType === 'ملازم فردية') {
-    if(studentGroup) studentGroup.style.display = 'none';
-    if(phoneGroup) phoneGroup.style.display = 'none';
-    if(studentInput) studentInput.removeAttribute('required');
-    if(phoneInput) phoneInput.removeAttribute('required');
-    if(mainFields) mainFields.style.display = '';
-    if(paymentField) paymentField.style.display = '';
-    if(notesField) notesField.style.display = '';
-    if(studyTypeField) studyTypeField.style.display = '';
+  if (subType === 'محاضرات فردية' || subType === 'ملازم فردية') {
+    if (studentGroup) studentGroup.style.display = 'none';
+    if (phoneGroup) phoneGroup.style.display = 'none';
+    if (studentInput) studentInput.removeAttribute('required');
+    if (phoneInput) phoneInput.removeAttribute('required');
+    if (mainFields) mainFields.style.display = '';
+    if (paymentField) paymentField.style.display = '';
+    if (notesField) notesField.style.display = '';
+    if (studyTypeField) studyTypeField.style.display = '';
   } else {
-    if(studentGroup) studentGroup.style.display = '';
-    if(phoneGroup) phoneGroup.style.display = '';
-    if(studentInput) studentInput.setAttribute('required', 'required');
-    if(phoneInput) phoneInput.setAttribute('required', 'required');
-    if(mainFields) mainFields.style.display = '';
-    if(paymentField) paymentField.style.display = '';
-    if(notesField) notesField.style.display = '';
-    if(studyTypeField) studyTypeField.style.display = '';
+    if (studentGroup) studentGroup.style.display = '';
+    if (phoneGroup) phoneGroup.style.display = '';
+    if (studentInput) studentInput.setAttribute('required', 'required');
+    if (phoneInput) phoneInput.setAttribute('required', 'required');
+    if (mainFields) mainFields.style.display = '';
+    if (paymentField) paymentField.style.display = '';
+    if (notesField) notesField.style.display = '';
+    if (studyTypeField) studyTypeField.style.display = '';
   }
 }
 document.getElementById('sub-type').addEventListener('input', updateFormFields);
@@ -608,7 +646,7 @@ document.getElementById('sub-type').addEventListener('input', updateFormFields);
 function updateSelectedItemsBox() {
   const list = document.getElementById('selected-items-list');
   if (!list) return;
-  
+
   // جمع جميع العناصر من جميع أنواع الاشتراك
   let allSelectedItems = [];
   Object.keys(itemsBySubType).forEach(subType => {
@@ -616,7 +654,7 @@ function updateSelectedItemsBox() {
       allSelectedItems = allSelectedItems.concat(itemsBySubType[subType]);
     }
   });
-  
+
   if (allSelectedItems.length === 0) {
     list.textContent = 'لا يوجد عناصر مختارة.';
   } else {
@@ -667,21 +705,32 @@ function showSelectableItems(items, subType = selectedSubType) {
     // تحقق من العنصر في itemsBySubType للنوع الحالي
     const itemsForThisType = itemsBySubType[subType] || [];
     const isSelected = itemsForThisType.find(i => i.name === item.name);
+    const isOutOfStock = item.stock <= 0 && (subType === 'ملازم فردية' || subType === 'محاضرات فردية' || subType === 'ملازم');
+
     tr.innerHTML = `
-      <td>${item.name}</td>
-      <td>${item.price} ج</td>
-      <td><button class="${isSelected ? 'remove' : ''}">${isSelected ? 'إزالة' : 'إضافة'}</button></td>
+      <td style="${isOutOfStock ? 'color:#888;text-decoration:line-through;' : ''}">${item.name} ${item.stock !== undefined ? `<small style="color:#666;display:block;">(المتوفر: ${item.stock})</small>` : ''}</td>
+      <td style="${isOutOfStock ? 'color:#888;' : ''}">${item.price} ج</td>
+      <td>
+        <button class="${isSelected ? 'remove' : ''}" ${isOutOfStock && !isSelected ? 'disabled style="background:#ccc;cursor:not-allowed;"' : ''}>
+          ${isOutOfStock && !isSelected ? 'نفذ' : (isSelected ? 'إزالة' : 'إضافة')}
+        </button>
+      </td>
     `;
     const btn = tr.querySelector('button');
     btn.onclick = (e) => {
       e.stopPropagation();
+      if (isOutOfStock && !isSelected) {
+        showNotification(`⚠️ "${item.name}" نفذ من المخزون!`, 'warning', 2500);
+        return;
+      }
+
       // إذا لم تكن الخريطة موجودة للنوع، أنشئها
       if (!itemsBySubType[subType]) {
         itemsBySubType[subType] = [];
       }
       const idx = itemsBySubType[subType].findIndex(i => i.name === item.name);
       if (idx === -1) {
-        itemsBySubType[subType].push({...item, subType});
+        itemsBySubType[subType].push({ ...item, subType });
         btn.textContent = 'إزالة';
         btn.classList.add('remove');
       } else {
@@ -722,7 +771,7 @@ function showSelectableItems(items, subType = selectedSubType) {
     window.selectedItems = [];
     resetSelectedItemsBox();
     // إعادة تحميل العناصر المتاحة للنوع الحالي (إن وجد)
-    if(selectedSubType) {
+    if (selectedSubType) {
       getItemsForSubType(selectedSubType, selectedGrade).then(showSelectableItems);
     }
   });
@@ -730,11 +779,11 @@ function showSelectableItems(items, subType = selectedSubType) {
 
 // التأكد من صحة البيانات قبل الحفظ
 function validateForm() {
-  if(!selectedGrade) {
+  if (!selectedGrade) {
     showNotification('يرجى اختيار فرقة', 'error', 3500);
     return false;
   }
-  
+
   // التحقق من وجود عناصر مختارة من أي نوع اشتراك
   let totalSelectedItems = 0;
   let subTypesSelected = [];
@@ -744,36 +793,36 @@ function validateForm() {
       subTypesSelected.push(subType);
     }
   });
-  
-  if(totalSelectedItems === 0) {
+
+  if (totalSelectedItems === 0) {
     showNotification('يرجى اختيار عنصر واحد على الأقل', 'error', 3500);
     return false;
   }
-  
+
   // التحقق من بيانات الطالب إذا لم تكن محاضرات أو ملازم فردية فقط
   const isOnlyIndividual = subTypesSelected.every(st => st === 'محاضرات فردية' || st === 'ملازم فردية');
-  if(!isOnlyIndividual) {
+  if (!isOnlyIndividual) {
     const student = document.getElementById('student-name').value.trim();
     const phone = document.getElementById('phone').value.trim();
     const studyType = document.getElementById('study-type').value;
-    
+
     // اسم الطالب ثلاثي
-    if(student.split(' ').filter(Boolean).length < 3) {
+    if (student.split(' ').filter(Boolean).length < 3) {
       showNotification('يرجى إدخال اسم الطالب ثلاثي على الأقل', 'error', 3500);
       return false;
     }
     // رقم الهاتف 11 رقم
-    if(!/^01[0-9]{9}$/.test(phone)) {
+    if (!/^01[0-9]{9}$/.test(phone)) {
       showNotification('يرجى إدخال رقم هاتف صحيح مكون من 11 رقم يبدأ بـ 01', 'error', 3500);
       return false;
     }
     // انتظام/انتساب
-    if(!studyType || (studyType !== 'انتظام' && studyType !== 'انتساب')) {
+    if (!studyType || (studyType !== 'انتظام' && studyType !== 'انتساب')) {
       showNotification('يرجى اختيار انتظام أو انتساب', 'error', 3500);
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -805,7 +854,7 @@ function showNotification(msg, type = 'info', duration = 2000) {
   notif.style.pointerEvents = 'auto';
   setTimeout(() => {
     notif.style.opacity = '0';
-    setTimeout(()=>{if(notif)notif.remove();}, 800);
+    setTimeout(() => { if (notif) notif.remove(); }, 800);
   }, duration);
 }
 
@@ -838,7 +887,7 @@ function showConfirmDialog(message, onConfirm, onCancel) {
 
   // إضافة أحداث النقر على الأزرار
   document.getElementById('confirm-yes').addEventListener('click', () => {
-    if(onConfirm) onConfirm();
+    if (onConfirm) onConfirm();
     confirmDialog.remove();
   });
   document.getElementById('confirm-no').addEventListener('click', () => {
@@ -851,8 +900,8 @@ function showConfirmDialog(message, onConfirm, onCancel) {
 async function fetchNextInvoiceNumber() {
   const subType = document.getElementById('sub-type')?.value || selectedSubType;
   let dbType = '';
-  if(subType === 'اشتراك كورسات') dbType = 'كورسات';
-  else if(subType === 'اشتراك ملازم') dbType = 'ملازم';
+  if (subType === 'اشتراك كورسات') dbType = 'كورسات';
+  else if (subType === 'اشتراك ملازم') dbType = 'ملازم';
   else dbType = subType;
   const snapshot = await getDocs(collection(db, 'invoices'));
   let count = 0;
@@ -892,8 +941,8 @@ window.addEventListener('DOMContentLoaded', () => {
   fetchNextInvoiceNumber(); // جلب رقم الفاتورة التالي
   updateInvoicePreview();
   // مراقبة تغيير اسم المستخدم في localStorage وتحديث المعاينة فوراً
-  window.addEventListener('storage', function(e) {
-    if(e.key === 'username') updateInvoicePreview();
+  window.addEventListener('storage', function (e) {
+    if (e.key === 'username') updateInvoicePreview();
   });
 });
 
@@ -904,9 +953,9 @@ function resetSelectedItemsBox() {
 }
 
 // ربط التحديث الفوري للمعاينة مع كل تغيير في الحقول
-['student-name','phone','grade','study-type','sub-type','payment-method','notes'].forEach(id => {
+['student-name', 'phone', 'grade', 'study-type', 'sub-type', 'payment-method', 'notes'].forEach(id => {
   const el = document.getElementById(id);
-  if(el) {
+  if (el) {
     el.addEventListener('input', () => {
       // تحديث المعاينة مباشرة عند أي تغيير
       updateInvoicePreview();
@@ -926,17 +975,17 @@ function printInvoice() {
   const centerPhone1 = localStorage.getItem('centerPhone1') || '';
   const centerPhone2 = localStorage.getItem('centerPhone2') || '';
   const centerPhone3 = localStorage.getItem('centerPhone3') || '';
-  
+
   // بناء قائمة الهواتف
   let phones = [];
-  if(centerPhone1) phones.push(centerPhone1);
-  if(centerPhone2) phones.push(centerPhone2);
-  if(centerPhone3) phones.push(centerPhone3);
+  if (centerPhone1) phones.push(centerPhone1);
+  if (centerPhone2) phones.push(centerPhone2);
+  if (centerPhone3) phones.push(centerPhone3);
   const phonesText = phones.length > 0 ? phones.join(' - ') : '';
-  
+
   // حساب الإجمالي
-  const total = (inv.items||[]).reduce((sum, x) => sum + (parseFloat(x.price) || 0), 0);
-  
+  const total = (inv.items || []).reduce((sum, x) => sum + (parseFloat(x.price) || 0), 0);
+
   // بناء محتوى الفاتورة بتصميم محسّن
   let html = `
     <div style='text-align:center;font-family:"Cairo", "Arabic Typesetting", sans-serif;direction:rtl;'>
@@ -972,7 +1021,7 @@ function printInvoice() {
       ` : ''}
       
       <table style='margin:3mm 0;'>
-        ${(inv.items||[]).map((item, idx) => `
+        ${(inv.items || []).map((item, idx) => `
         <tr ${idx % 2 === 0 ? "style='background:#f9f9f9;'" : ''}>
           <td>${item.name}</td>
           <td style='color:#388e3c;font-weight:bold;'>${item.price} ج</td>
@@ -1004,7 +1053,7 @@ function printInvoice() {
       </div>
     </div>
   `;
-  
+
   // نافذة الطباعة
   const win = window.open('', '', 'width=400,height=600');
   win.document.write(`
@@ -1085,7 +1134,7 @@ function printInvoice() {
     <body><div class="print-container">${html}</div></body>
     </html>
   `);
-  
+
   win.document.close();
   setTimeout(() => {
     win.print();
